@@ -1,8 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useState } from "react";
 import {
 	Heart,
 	X,
@@ -43,6 +39,12 @@ export function CardView({
 	}
 
 	const eventDate = new Date(event.date);
+	const mapping = {
+		gender: "Płeć",
+		age: "Wiek",
+		location: "Lokalizacja",
+		other: "Inne",
+	};
 
 	const openGoogleMaps = () => {
 		const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -125,14 +127,18 @@ export function CardView({
 									</span>
 									{Object.entries(
 										event.requirements || {}
-									).map(([key, value]) => (
-										<span
-											key={key}
-											className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-sm"
-										>
-											{key}: {value}
-										</span>
-									))}
+									).map(([key, value]) =>
+										key !== "none" ? (
+											<span
+												key={key}
+												className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-xs"
+											>
+												{mapping[key] || ""}: {value}
+											</span>
+										) : (
+											""
+										)
+									)}
 								</div>
 								<div className="flex items-center justify-between">
 									<p className="text-white text-lg font-semibold">

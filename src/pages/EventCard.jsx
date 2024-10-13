@@ -15,6 +15,7 @@ import {
 	setDoc,
 	updateDoc,
 	arrayUnion,
+	arrayRemove,
 } from "firebase/firestore";
 
 export default function EventCard() {
@@ -135,6 +136,12 @@ export default function EventCard() {
 
 	const handleJoinEvent = async (eventId) => {
 		await updateUserEvents(eventId, "joined");
+
+		const chatRef = doc(db, "chats", eventId);
+		await updateDoc(chatRef, {
+			participants: arrayUnion(auth.currentUser.uid),
+		});
+
 		setShowCongratulations(true);
 		setSelectedEventId(null);
 	};
@@ -150,6 +157,12 @@ export default function EventCard() {
 
 	const handleDislikeEvent = async (eventId) => {
 		await updateUserEvents(eventId, "banned");
+
+		const chatRef = doc(db, "chats", eventId);
+		await updateDoc(chatRef, {
+			participants: arrayRemove(auth.currentUser.uid),
+		});
+
 		if (eventView === "card") {
 			nextEvent();
 		} else {

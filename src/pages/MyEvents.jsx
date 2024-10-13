@@ -36,6 +36,12 @@ export function MyEvents() {
 		created: [],
 	});
 	const [loading, setLoading] = useState(true);
+	const mapping = {
+		gender: "Płeć",
+		age: "Wiek",
+		location: "Lokalizacja",
+		other: "Inne",
+	};
 
 	useEffect(() => {
 		fetchEvents();
@@ -165,6 +171,11 @@ export function MyEvents() {
 				banned: arrayUnion(eventId),
 			});
 
+			const chatRef = doc(db, "chats", eventId);
+			await updateDoc(chatRef, {
+				participants: arrayRemove(user.uid),
+			});
+
 			setEvents((prevEvents) => ({
 				...prevEvents,
 				participating: prevEvents.participating.filter(
@@ -173,7 +184,7 @@ export function MyEvents() {
 			}));
 			setSelectedEventId(null);
 		} catch (error) {
-			console.error("Error leaving event:", error);
+			console.error(error);
 		}
 	};
 
@@ -186,6 +197,11 @@ export function MyEvents() {
 			await updateDoc(myEventsRef, {
 				liked: arrayRemove(eventId),
 				joined: arrayUnion(eventId),
+			});
+
+			const chatRef = doc(db, "chats", eventId);
+			await updateDoc(chatRef, {
+				participants: arrayUnion(user.uid),
 			});
 
 			const eventToMove = events.liked.find(
@@ -205,6 +221,9 @@ export function MyEvents() {
 	const handleDeleteEvent = async (eventId) => {
 		try {
 			await deleteDoc(doc(db, "events", eventId));
+
+			await deleteDoc(doc(db, "chats", eventId));
+
 			setEvents((prevEvents) => ({
 				...prevEvents,
 				created: prevEvents.created.filter(
@@ -266,14 +285,19 @@ export function MyEvents() {
 												</span>
 												{Object.entries(
 													event.requirements || {}
-												).map(([key, value]) => (
-													<span
-														key={key}
-														className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-xs"
-													>
-														{key}: {value}
-													</span>
-												))}
+												).map(([key, value]) =>
+													key !== "none" ? (
+														<span
+															key={key}
+															className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-xs"
+														>
+															{mapping[key] || ""}
+															: {value}
+														</span>
+													) : (
+														""
+													)
+												)}
 											</div>
 										</div>
 									</div>

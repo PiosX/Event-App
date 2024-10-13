@@ -1,4 +1,5 @@
-/* eslint-disable react/prop-types */
+"use client";
+
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,89 +19,99 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo.svg";
-
-const allConversations = [
-	{
-		id: 1,
-		title: "Avengers Endgame",
-		avatar: "/placeholder.svg?height=40&width=40&text=AE",
-		unreadCount: 2,
-		date: "2023-06-15T14:00:00",
-		location: "Kino Centrum",
-	},
-	{
-		id: 2,
-		title: "Wycieczka do Paryża",
-		avatar: "/placeholder.svg?height=40&width=40&text=WP",
-		unreadCount: 0,
-		date: "2023-07-01T10:00:00",
-		location: "Paryż, Francja",
-	},
-	{
-		id: 3,
-		title: "Przepisy keto",
-		avatar: "/placeholder.svg?height=40&width=40&text=PK",
-		unreadCount: 1,
-		date: "2023-06-20T12:00:00",
-		location: "Online",
-	},
-];
-
-// Updated messages array without timestamps
-const initialMessages = [
-	{
-		id: 1,
-		sender: "Thor",
-		avatar: "/placeholder.svg?height=32&width=32&text=T",
-		content:
-			"Hej wszystkim! Właśnie obejrzałem Avengers: Endgame. To było...",
-		seenBy: ["U1", "U2", "U3", "U4", "U5", "U6"],
-	},
-	{
-		id: 2,
-		sender: "Czarna Wdowa",
-		avatar: "/placeholder.svg?height=32&width=32&text=CW",
-		content:
-			"Chcę zobaczyć scenę, gdzie Thor i Thanos walczą. Na końcu Thanos próbuje podnieść Thora za szyję, a Thor mówi 'On próbuje mnie podnieść, haha'",
-		seenBy: ["U1", "U2", "U3", "U4", "U5"],
-	},
-	{
-		id: 3,
-		sender: "Obecny Użytkownik",
-		content:
-			"Czekam na Strażników Galaktyki część 3! Słyszałem, że kończy się tak: 'Jesteśmy Strażnikami Galaktyki.' 'Co, jak stara ekipa?' 'Nie, nowi.'",
-		seenBy: ["U1", "U2", "U3", "U4", "U5"],
-	},
-];
+import { getAuth } from "firebase/auth";
+import { db } from "../firebaseConfig";
+import {
+	doc,
+	getDoc,
+	updateDoc,
+	onSnapshot,
+	arrayUnion,
+	Timestamp,
+	collection,
+	query,
+	where,
+	getDocs,
+} from "firebase/firestore";
 
 export default function Chat() {
 	const [selectedConversation, setSelectedConversation] = useState(null);
 	const [message, setMessage] = useState("");
 	const [searchTerm, setSearchTerm] = useState("");
-	const [conversations, setConversations] = useState(allConversations);
-	const [messages, setMessages] = useState(initialMessages);
+	const [conversations, setConversations] = useState([]);
+	const [messages, setMessages] = useState([]);
 	const fileInputRef = useRef(null);
 	const scrollAreaRef = useRef(null);
 	const messagesEndRef = useRef(null);
+	const auth = getAuth();
 
 	useEffect(() => {
-		const filteredConversations = allConversations.filter((conv) =>
-			conv.title.toLowerCase().includes(searchTerm.toLowerCase())
+		const fetchAllEvents = async () => {
+			if (!auth.currentUser) return;
+
+			// Fetch joined events
+			const myEventsRef = doc(db, "myevents", auth.currentUser.uid);
+			const myEventsDoc = await getDoc(myEventsRef);
+			let allEvents = [];
+
+			if (myEventsDoc.exists()) {
+				const joinedEventIds = myEventsDoc.data().joined || [];
+				const joinedEventsData = await Promise.all(
+					joinedEventIds.map(async (eventId) => {
+						const eventDoc = await getDoc(
+							doc(db, "events", eventId)
+						);
+						return { id: eventDoc.id, ...eventDoc.data() };
+					})
+				);
+				allEvents = [...joinedEventsData];
+			}
+
+			// Fetch created events
+			const createdEventsQuery = query(
+				collection(db, "events"),
+				where("creator", "==", auth.currentUser.uid)
+			);
+			const createdEventsSnapshot = await getDocs(createdEventsQuery);
+			const createdEventsData = createdEventsSnapshot.docs.map((doc) => ({
+				id: doc.id,
+				...doc.data(),
+			}));
+
+			// Combine joined and created events
+			allEvents = [...allEvents, ...createdEventsData];
+
+			// Remove duplicates (in case a user joined their own event)
+			const uniqueEvents = Array.from(
+				new Set(allEvents.map((event) => event.id))
+			).map((id) => allEvents.find((event) => event.id === id));
+
+			setConversations(uniqueEvents);
+		};
+
+		fetchAllEvents();
+	}, [auth.currentUser]);
+
+	useEffect(() => {
+		const filteredConversations = conversations.filter((conv) =>
+			conv.eventName.toLowerCase().includes(searchTerm.toLowerCase())
 		);
-		setConversations(
-			filteredConversations.map((conv) => ({
-				...conv,
-				lastMessage:
-					messages.length > 0
-						? messages[messages.length - 1].content
-						: "",
-			}))
-		);
-	}, [searchTerm, messages]);
+		setConversations(filteredConversations);
+	}, [searchTerm]);
 
 	useEffect(() => {
 		if (selectedConversation) {
 			scrollToBottom(false);
+			const unsubscribe = onSnapshot(
+				doc(db, "chats", selectedConversation.id),
+				(doc) => {
+					if (doc.exists()) {
+						setMessages(doc.data().messages || []);
+					}
+				}
+			);
+
+			return () => unsubscribe();
 		}
 	}, [selectedConversation]);
 
@@ -122,38 +133,40 @@ export default function Chat() {
 		setSelectedConversation(null);
 	};
 
-	const handleSendMessage = (e) => {
+	const handleSendMessage = async (e) => {
 		e.preventDefault();
-		if (message.trim() !== "") {
+		if (message.trim() !== "" && auth.currentUser) {
 			const newMessage = {
-				id: messages.length + 1,
-				sender: "Obecny Użytkownik",
+				senderId: auth.currentUser.uid,
 				content: message,
-				seenBy: [],
+				time: Timestamp.now(),
 			};
-			setMessages([...messages, newMessage]);
+
+			const chatRef = doc(db, "chats", selectedConversation.id);
+			await updateDoc(chatRef, {
+				messages: arrayUnion(newMessage),
+			});
+
 			setMessage("");
 		}
 	};
 
-	const handleFileUpload = (e) => {
+	const handleFileUpload = async (e) => {
 		const file = e.target.files[0];
-		if (file) {
+		if (file && auth.currentUser) {
 			const reader = new FileReader();
-			reader.onload = (e) => {
+			reader.onload = async (e) => {
 				const newMessage = {
-					id: messages.length + 1,
-					sender: "Obecny Użytkownik",
-					content: (
-						<img
-							src={e.target.result}
-							alt="Uploaded"
-							className="max-w-full h-auto rounded-lg"
-						/>
-					),
-					seenBy: [],
+					senderId: auth.currentUser.uid,
+					content: e.target.result,
+					time: Timestamp.now(),
+					type: "image",
 				};
-				setMessages([...messages, newMessage]);
+
+				const chatRef = doc(db, "chats", selectedConversation.id);
+				await updateDoc(chatRef, {
+					messages: arrayUnion(newMessage),
+				});
 			};
 			reader.readAsDataURL(file);
 		}
@@ -246,15 +259,15 @@ export default function Chat() {
 								</Button>
 								<Avatar className="w-10 h-10 mr-3">
 									<AvatarImage
-										src={selectedConversation.avatar}
+										src={selectedConversation.image}
 									/>
 									<AvatarFallback>
-										{selectedConversation.title[0]}
+										{selectedConversation.eventName[0]}
 									</AvatarFallback>
 								</Avatar>
 								<div className="flex-grow">
 									<h2 className="font-semibold">
-										{selectedConversation.title}
+										{selectedConversation.eventName}
 									</h2>
 									<div className="flex items-center text-sm text-gray-500">
 										<Calendar className="w-4 h-4 mr-1" />
@@ -262,12 +275,15 @@ export default function Chat() {
 											selectedConversation.date
 										).toLocaleString("pl-PL", {
 											dateStyle: "medium",
-											timeStyle: "short",
 										})}
+										{", "}
+										{selectedConversation.time}
 									</div>
 									<div className="flex items-center text-sm text-gray-500">
 										<MapPin className="w-4 h-4 mr-1" />
-										{selectedConversation.location}
+										{selectedConversation.street}
+										{", "}
+										{selectedConversation.city}
 									</div>
 								</div>
 								<Button variant="ghost" className="p-2">
@@ -280,75 +296,20 @@ export default function Chat() {
 							>
 								<div className="p-4">
 									{messages.map((msg, index) => (
-										<React.Fragment key={msg.id}>
+										<React.Fragment key={index}>
 											<MessageBubble
 												message={msg}
 												isCurrentUser={
-													msg.sender ===
-													"Obecny Użytkownik"
+													msg.senderId ===
+													auth.currentUser?.uid
 												}
 												showAvatar={
 													index === 0 ||
 													messages[index - 1]
-														.sender !== msg.sender
+														.senderId !==
+														msg.senderId
 												}
 											/>
-											{index === messages.length - 1 &&
-												msg.sender !==
-													"Obecny Użytkownik" &&
-												msg.seenBy.length > 0 && (
-													<div
-														className={`flex items-center mt-2 text-sm text-gray-500 ${
-															msg.sender ===
-															"Obecny Użytkownik"
-																? "justify-end"
-																: "justify-start"
-														}`}
-													>
-														<span className="mr-2">
-															Wyświetlone przez:
-														</span>
-														<div className="flex -space-x-2">
-															{msg.seenBy
-																.slice(0, 3)
-																.map(
-																	(
-																		user,
-																		index
-																	) => (
-																		<Avatar
-																			key={
-																				user
-																			}
-																			className={`w-6 h-6 border-2 border-white z-${
-																				30 -
-																				index *
-																					10
-																			}`}
-																		>
-																			<AvatarImage
-																				src={`/placeholder.svg?height=24&width=24&text=${user}`}
-																			/>
-																			<AvatarFallback>
-																				{
-																					user
-																				}
-																			</AvatarFallback>
-																		</Avatar>
-																	)
-																)}
-															{msg.seenBy.length >
-																3 && (
-																<div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs font-semibold z-0">
-																	+
-																	{msg.seenBy
-																		.length -
-																		3}
-																</div>
-															)}
-														</div>
-													</div>
-												)}
 										</React.Fragment>
 									))}
 									<div ref={messagesEndRef} />
@@ -429,11 +390,11 @@ function ConversationItem({ conversation, onClick }) {
 			onClick={onClick}
 		>
 			<Avatar className="w-12 h-12 mr-3">
-				<AvatarImage src={conversation.avatar} />
-				<AvatarFallback>{conversation.title[0]}</AvatarFallback>
+				<AvatarImage src={conversation.image} />
+				<AvatarFallback>{conversation.eventName[0]}</AvatarFallback>
 			</Avatar>
 			<div className="flex-grow overflow-hidden">
-				<h3 className="font-semibold">{conversation.title}</h3>
+				<h3 className="font-semibold">{conversation.eventName}</h3>
 				<p className="text-sm text-gray-500 truncate">
 					{truncatedMessage}
 				</p>
@@ -457,7 +418,7 @@ function MessageBubble({ message, isCurrentUser, showAvatar }) {
 			{!isCurrentUser && showAvatar && (
 				<Avatar className="w-8 h-8 mr-2">
 					<AvatarImage src={message.avatar} />
-					<AvatarFallback>{message.sender[0]}</AvatarFallback>
+					<AvatarFallback>{message.senderId[0]}</AvatarFallback>
 				</Avatar>
 			)}
 			{!isCurrentUser && !showAvatar && <div className="w-8 mr-2" />}
@@ -467,12 +428,16 @@ function MessageBubble({ message, isCurrentUser, showAvatar }) {
 				}`}
 			>
 				{!isCurrentUser && showAvatar && (
-					<p className="font-semibold mb-1">{message.sender}</p>
+					<p className="font-semibold mb-1">{message.senderId}</p>
 				)}
-				{typeof message.content === "string" ? (
-					<p>{message.content}</p>
+				{message.type === "image" ? (
+					<img
+						src={message.content}
+						alt="Uploaded"
+						className="max-w-full h-auto rounded-lg"
+					/>
 				) : (
-					message.content
+					<p>{message.content}</p>
 				)}
 			</div>
 		</div>

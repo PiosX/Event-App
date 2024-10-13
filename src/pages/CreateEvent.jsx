@@ -25,7 +25,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { pl } from "date-fns/locale";
 import placeholder from "../assets/placeholder.jpg";
 import { db } from "../firebaseConfig";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, setDoc, doc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -227,16 +227,21 @@ export default function CreateEvent({ onEventCreated }) {
 
 	const handleRequirementChange = (requirement) => {
 		setRequirements((prev) => {
-			if (prev[requirement]) {
-				const { [requirement]: _, ...rest } = prev;
-				return rest;
-			} else {
-				return { ...prev, [requirement]: "" };
+			if (requirement === "none") {
+				return Object.keys(prev).length === 0 ? { none: true } : {};
 			}
+			const newRequirements = { ...prev };
+			if (requirement in newRequirements) {
+				delete newRequirements[requirement];
+			} else {
+				newRequirements[requirement] = requirement === "age" ? "-" : "";
+				delete newRequirements.none;
+			}
+			return newRequirements;
 		});
 	};
 
-	const handleRequirementValue = (requirement, value) => {
+	const handleRequirementValueChange = (requirement, value) => {
 		setRequirements((prev) => ({
 			...prev,
 			[requirement]: value,
@@ -271,7 +276,16 @@ export default function CreateEvent({ onEventCreated }) {
 				participants: [user],
 			};
 
-			await addDoc(collection(db, "events"), eventData);
+			// Add the event to the 'events' collection
+			const eventRef = await addDoc(collection(db, "events"), eventData);
+
+			// Create a chat document for the event
+			const chatData = {
+				participants: [user],
+				messages: [],
+			};
+			await setDoc(doc(db, "chats", eventRef.id), chatData);
+
 			navigate(`/myevents`);
 			if (onEventCreated) {
 				onEventCreated(eventData);
@@ -388,7 +402,7 @@ export default function CreateEvent({ onEventCreated }) {
 						<Input
 							id="capacity"
 							type="number"
-							min="1"
+							min="2"
 							placeholder="Wprowadź liczbę miejsc"
 							value={isUnlimited ? "" : capacity}
 							onChange={(e) => setCapacity(e.target.value)}
@@ -455,35 +469,49 @@ export default function CreateEvent({ onEventCreated }) {
 				<div className="space-y-2">
 					<Label>Wymagania/kryteria dołączenia</Label>
 					<div className="flex flex-wrap gap-2">
-						{["Brak", "Wiek", "Płeć", "Lokalizacja", "Inne"].map(
+						{["none", "age", "gender", "location", "other"].map(
 							(req) => (
 								<Button
 									key={req}
 									type="button"
 									variant={
-										requirements[req] !== undefined
+										req in requirements
 											? "default"
 											: "outline"
 									}
 									onClick={() => handleRequirementChange(req)}
+									disabled={
+										req === "none"
+											? false
+											: "none" in requirements
+									}
 								>
-									{req}
+									{req === "none"
+										? "Brak"
+										: req === "age"
+										? "Wiek"
+										: req === "gender"
+										? "Płeć"
+										: req === "location"
+										? "Lokalizacja"
+										: "Inne"}
 								</Button>
 							)
 						)}
 					</div>
-					{requirements.age !== undefined && (
+					{"age" in requirements && (
 						<div className="flex space-x-2">
 							<Input
 								placeholder="Min wiek"
 								type="number"
 								min="1"
-								value={requirements.age.split("-")[0] || ""}
+								value={requirements.age?.split("-")[0] || ""}
 								onChange={(e) =>
-									handleRequirementValue(
-										"Wiek",
+									handleRequirementValueChange(
+										"age",
 										`${e.target.value}-${
-											requirements.age.split("-")[1] || ""
+											requirements.age?.split("-")[1] ||
+											""
 										}`
 									)
 								}
@@ -493,12 +521,13 @@ export default function CreateEvent({ onEventCreated }) {
 								placeholder="Max wiek"
 								type="number"
 								min="1"
-								value={requirements.age.split("-")[1] || ""}
+								value={requirements.age?.split("-")[1] || ""}
 								onChange={(e) =>
-									handleRequirementValue(
-										"Wiek",
+									handleRequirementValueChange(
+										"age",
 										`${
-											requirements.age.split("-")[0] || ""
+											requirements.age?.split("-")[0] ||
+											""
 										}-${e.target.value}`
 									)
 								}
@@ -506,11 +535,11 @@ export default function CreateEvent({ onEventCreated }) {
 							/>
 						</div>
 					)}
-					{requirements.gender !== undefined && (
+					{"gender" in requirements && (
 						<Select
 							value={requirements.gender}
 							onValueChange={(value) =>
-								handleRequirementValue("Płeć", value)
+								handleRequirementValueChange("gender", value)
 							}
 							required
 						>
@@ -528,25 +557,28 @@ export default function CreateEvent({ onEventCreated }) {
 							</SelectContent>
 						</Select>
 					)}
-					{requirements.location !== undefined && (
+					{"location" in requirements && (
 						<Input
 							placeholder="Wymagana lokalizacja"
 							value={requirements.location}
 							onChange={(e) =>
-								handleRequirementValue(
-									"Lokalizacja",
+								handleRequirementValueChange(
+									"location",
 									e.target.value
 								)
 							}
 							required
 						/>
 					)}
-					{requirements.other !== undefined && (
+					{"other" in requirements && (
 						<Input
 							placeholder="Inne wymagania"
 							value={requirements.other}
 							onChange={(e) =>
-								handleRequirementValue("Inne", e.target.value)
+								handleRequirementValueChange(
+									"other",
+									e.target.value
+								)
 							}
 							required
 						/>

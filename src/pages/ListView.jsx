@@ -4,6 +4,12 @@ import { pl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function ListView({ events, onSelectEvent }) {
+	const mapping = {
+		gender: "Płeć",
+		age: "Wiek",
+		location: "Lokalizacja",
+		other: "Inne",
+	};
 	if (events.length === 0) {
 		return (
 			<div className="h-full flex items-center justify-center bg-gray-100">
@@ -50,14 +56,19 @@ export function ListView({ events, onSelectEvent }) {
 											</span>
 											{Object.entries(
 												event.requirements
-											).map(([key, value]) => (
-												<span
-													key={key}
-													className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-xs"
-												>
-													{key}: {value}
-												</span>
-											))}
+											).map(([key, value]) =>
+												key !== "none" ? (
+													<span
+														key={key}
+														className="bg-gray-200 text-gray-800 px-2 py-1 rounded-full text-xs"
+													>
+														{mapping[key] || ""}:{" "}
+														{value}
+													</span>
+												) : (
+													""
+												)
+											)}
 										</div>
 									</div>
 								</div>

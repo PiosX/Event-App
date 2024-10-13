@@ -8,6 +8,8 @@ import {
 	getDocs,
 	deleteDoc,
 	doc,
+	arrayRemove,
+	updateDoc,
 } from "firebase/firestore";
 import {
 	Edit,
@@ -78,23 +80,47 @@ export default function UserProfile() {
 				return;
 			}
 
+			const eventsQuery = query(
+				collection(db, "events"),
+				where("creator", "==", user.uid)
+			);
+			const eventsSnapshot = await getDocs(eventsQuery);
+			const eventIds = eventsSnapshot.docs.map((doc) => doc.id);
+
+			for (const eventId of eventIds) {
+				await deleteDoc(doc(db, "events", eventId));
+				await deleteDoc(doc(db, "chats", eventId));
+			}
+
+			await deleteDoc(doc(db, "myevents", user.uid));
+
+			const chatsQuery = query(
+				collection(db, "chats"),
+				where("participants", "array-contains", user.uid)
+			);
+			const chatsSnapshot = await getDocs(chatsQuery);
+			for (const chatDoc of chatsSnapshot.docs) {
+				await updateDoc(doc(db, "chats", chatDoc.id), {
+					participants: arrayRemove(user.uid),
+				});
+			}
+
 			// Find and delete the user document
-			const q = query(
+			const userQuery = query(
 				collection(db, "users"),
 				where("uid", "==", user.uid)
 			);
-			const querySnapshot = await getDocs(q);
-			if (!querySnapshot.empty) {
-				const userDoc = querySnapshot.docs[0];
+			const userSnapshot = await getDocs(userQuery);
+			if (!userSnapshot.empty) {
+				const userDoc = userSnapshot.docs[0];
 				await deleteDoc(doc(db, "users", userDoc.id));
 			}
 
 			await deleteUser(user);
-
 			await signOut(auth);
 			navigate("/");
 		} catch (error) {
-			console.error(error);
+			console.error("Error deleting account:", error);
 		}
 	};
 
