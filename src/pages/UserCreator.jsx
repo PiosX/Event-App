@@ -153,10 +153,10 @@ export default function UserCreator() {
 		name: name || "",
 		age: "",
 		gender: "",
-		street: "",
 		city: "",
 		description: "",
 	});
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const storage = getStorage();
 	const auth = getAuth();
 	const user = auth.currentUser ? auth.currentUser.uid : null;
@@ -241,12 +241,13 @@ export default function UserCreator() {
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+		if (isSubmitting) return;
+
 		if (activeTab === "person") {
 			if (
 				!formData.name ||
 				!formData.age ||
 				!formData.gender ||
-				!formData.street ||
 				!formData.city ||
 				!formData.description
 			) {
@@ -254,12 +255,7 @@ export default function UserCreator() {
 				return;
 			}
 		} else {
-			if (
-				!formData.name ||
-				!formData.street ||
-				!formData.city ||
-				!formData.description
-			) {
+			if (!formData.name || !formData.city || !formData.description) {
 				setError("Proszę wypełnić wszystkie pola dla organizacji.");
 				return;
 			}
@@ -272,6 +268,9 @@ export default function UserCreator() {
 			setError("Proszę wybrać co najmniej jedno zainteresowanie.");
 			return;
 		}
+
+		setIsSubmitting(true);
+		setError("");
 
 		const userData = {
 			...formData,
@@ -287,11 +286,13 @@ export default function UserCreator() {
 				profileImage: imageUrl,
 			});
 
-			setTimeout(() => {
-				navigate(`/profile/${user}`);
-			}, 5000);
+			navigate(`/profile/${user}`);
+			window.location.reload();
 		} catch (error) {
-			console.error("Error:", error);
+			console.error(error);
+			setError(
+				"Wystąpił błąd podczas tworzenia profilu. Spróbuj ponownie."
+			);
 		}
 	};
 
@@ -393,17 +394,6 @@ export default function UserCreator() {
 						</Select>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="street">Ulica</Label>
-						<Input
-							id="street"
-							name="street"
-							placeholder="Wprowadź ulicę"
-							value={formData.street}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
 						<Label htmlFor="city">Miasto</Label>
 						<Input
 							id="city"
@@ -469,17 +459,6 @@ export default function UserCreator() {
 						/>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="street">Ulica</Label>
-						<Input
-							id="street"
-							name="street"
-							placeholder="Wprowadź ulicę"
-							value={formData.street}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
 						<Label htmlFor="city">Miasto</Label>
 						<Input
 							id="city"
@@ -507,11 +486,7 @@ export default function UserCreator() {
 				</TabsContent>
 
 				<div className="space-y-2 mt-4">
-					<Label>
-						{activeTab === "person"
-							? "Zainteresowania (max 10)"
-							: "Kategoria działalności"}
-					</Label>
+					<Label>Zainteresowania (max 10)</Label>
 					<Input
 						type="text"
 						placeholder="Szukaj zainteresowań"
@@ -549,8 +524,39 @@ export default function UserCreator() {
 					</div>
 				</div>
 				{error && <p className="text-red-500 pt-5">{error}</p>}
-				<Button type="submit" className="w-full mt-6">
-					Utwórz profil
+				<Button
+					type="submit"
+					className="w-full mt-6"
+					disabled={isSubmitting}
+				>
+					{" "}
+					{isSubmitting ? (
+						<>
+							<svg
+								className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
+							>
+								<circle
+									className="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									strokeWidth="4"
+								></circle>
+								<path
+									className="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+								></path>
+							</svg>
+							Tworzenie profilu...
+						</>
+					) : (
+						"Utwórz profil"
+					)}
 				</Button>
 			</Tabs>
 
