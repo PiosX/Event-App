@@ -154,6 +154,7 @@ export default function CreateEvent({ onEventCreated }) {
 	const [eventDescription, setEventDescription] = useState("");
 	const [street, setStreet] = useState("");
 	const [city, setCity] = useState("");
+	const [ageError, setAgeError] = useState(""); // Added ageError state
 	const navigate = useNavigate();
 	const storage = getStorage();
 	const auth = getAuth();
@@ -255,6 +256,11 @@ export default function CreateEvent({ onEventCreated }) {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		if (!user) {
+			return;
+		}
+
+		if (ageError) {
+			// Added age error check
 			return;
 		}
 
@@ -442,7 +448,7 @@ export default function CreateEvent({ onEventCreated }) {
 							type="time"
 							value={time}
 							onChange={(e) => setTime(e.target.value)}
-							className="w-24 focus:ring-black focus:border-black"
+							className="w-24 focus:ring-black  focus:border-black"
 							required
 						/>
 					</div>
@@ -500,39 +506,71 @@ export default function CreateEvent({ onEventCreated }) {
 						)}
 					</div>
 					{"age" in requirements && (
-						<div className="flex space-x-2">
-							<Input
-								placeholder="Min wiek"
-								type="number"
-								min="1"
-								value={requirements.age?.split("-")[0] || ""}
-								onChange={(e) =>
-									handleRequirementValueChange(
-										"age",
-										`${e.target.value}-${
+						<div className="flex flex-col space-y-2">
+							<div className="flex space-x-2">
+								<Input
+									placeholder="Min wiek"
+									type="number"
+									min="1"
+									value={
+										requirements.age?.split("-")[0] || ""
+									}
+									onChange={(e) => {
+										const minAge = e.target.value;
+										const maxAge =
 											requirements.age?.split("-")[1] ||
-											""
-										}`
-									)
-								}
-								required
-							/>
-							<Input
-								placeholder="Max wiek"
-								type="number"
-								min="1"
-								value={requirements.age?.split("-")[1] || ""}
-								onChange={(e) =>
-									handleRequirementValueChange(
-										"age",
-										`${
+											"";
+										if (
+											maxAge &&
+											parseInt(minAge) > parseInt(maxAge)
+										) {
+											setAgeError(
+												"Minimalny wiek nie może być większy od maksymalnego"
+											);
+										} else {
+											setAgeError("");
+										}
+										handleRequirementValueChange(
+											"age",
+											`${minAge}-${maxAge}`
+										);
+									}}
+									required
+								/>
+								<Input
+									placeholder="Max wiek"
+									type="number"
+									min="1"
+									value={
+										requirements.age?.split("-")[1] || ""
+									}
+									onChange={(e) => {
+										const maxAge = e.target.value;
+										const minAge =
 											requirements.age?.split("-")[0] ||
-											""
-										}-${e.target.value}`
-									)
-								}
-								required
-							/>
+											"";
+										if (
+											parseInt(maxAge) < parseInt(minAge)
+										) {
+											setAgeError(
+												"Minimalny wiek nie może być większy od maksymalnego"
+											);
+										} else {
+											setAgeError("");
+										}
+										handleRequirementValueChange(
+											"age",
+											`${minAge}-${maxAge}`
+										);
+									}}
+									required
+								/>
+							</div>
+							{ageError && (
+								<p className="text-red-500 text-sm">
+									{ageError}
+								</p>
+							)}
 						</div>
 					)}
 					{"gender" in requirements && (

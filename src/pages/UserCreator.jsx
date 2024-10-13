@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, FormEvent } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebaseConfig";
 import { collection, addDoc, doc, setDoc } from "firebase/firestore";
@@ -138,7 +138,7 @@ const interests = [
 export default function UserCreator() {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { name, email } = location.state || {};
+	const { name } = location.state || {};
 
 	const [error, setError] = useState("");
 	const [selectedInterests, setSelectedInterests] = useState([]);
@@ -153,11 +153,9 @@ export default function UserCreator() {
 		name: name || "",
 		age: "",
 		gender: "",
-		location: "",
+		street: "",
+		city: "",
 		description: "",
-		orgName: "",
-		orgLocation: "",
-		orgDescription: "",
 	});
 	const storage = getStorage();
 	const auth = getAuth();
@@ -248,7 +246,8 @@ export default function UserCreator() {
 				!formData.name ||
 				!formData.age ||
 				!formData.gender ||
-				!formData.location ||
+				!formData.street ||
+				!formData.city ||
 				!formData.description
 			) {
 				setError("Proszę wypełnić wszystkie pola dla osoby.");
@@ -256,9 +255,10 @@ export default function UserCreator() {
 			}
 		} else {
 			if (
-				!formData.orgName ||
-				!formData.orgLocation ||
-				!formData.orgDescription
+				!formData.name ||
+				!formData.street ||
+				!formData.city ||
+				!formData.description
 			) {
 				setError("Proszę wypełnić wszystkie pola dla organizacji.");
 				return;
@@ -393,12 +393,23 @@ export default function UserCreator() {
 						</Select>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="location">Lokalizacja</Label>
+						<Label htmlFor="street">Ulica</Label>
 						<Input
-							id="location"
-							name="location"
-							placeholder="Wprowadź lokalizację"
-							value={formData.location}
+							id="street"
+							name="street"
+							placeholder="Wprowadź ulicę"
+							value={formData.street}
+							onChange={handleInputChange}
+							required
+						/>
+					</div>
+					<div className="space-y-2">
+						<Label htmlFor="city">Miasto</Label>
+						<Input
+							id="city"
+							name="city"
+							placeholder="Wprowadź miasto"
+							value={formData.city}
 							onChange={handleInputChange}
 							required
 						/>
@@ -447,37 +458,48 @@ export default function UserCreator() {
 						<Label htmlFor="org-photo">Zdjęcie</Label>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="org-name">Nazwa organizacji</Label>
+						<Label htmlFor="name">Nazwa organizacji</Label>
 						<Input
-							id="org-name"
-							name="orgName"
+							id="name"
+							name="name"
 							placeholder="Wprowadź nazwę organizacji"
-							value={formData.orgName}
+							value={formData.name}
 							onChange={handleInputChange}
 							required
 						/>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="org-location">Lokalizacja</Label>
+						<Label htmlFor="street">Ulica</Label>
 						<Input
-							id="org-location"
-							name="orgLocation"
-							placeholder="Wprowadź lokalizację"
-							value={formData.orgLocation}
+							id="street"
+							name="street"
+							placeholder="Wprowadź ulicę"
+							value={formData.street}
 							onChange={handleInputChange}
 							required
 						/>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="org-description">
+						<Label htmlFor="city">Miasto</Label>
+						<Input
+							id="city"
+							name="city"
+							placeholder="Wprowadź miasto"
+							value={formData.city}
+							onChange={handleInputChange}
+							required
+						/>
+					</div>
+					<div className="space-y-2">
+						<Label htmlFor="description">
 							Krótki opis (max 200 znaków)
 						</Label>
 						<Textarea
-							id="org-description"
-							name="orgDescription"
+							id="description"
+							name="description"
 							placeholder="Wprowadź krótki opis"
 							maxLength={200}
-							value={formData.orgDescription}
+							value={formData.description}
 							onChange={handleInputChange}
 							required
 						/>
@@ -485,7 +507,11 @@ export default function UserCreator() {
 				</TabsContent>
 
 				<div className="space-y-2 mt-4">
-					<Label>Zainteresowania (max 10)</Label>
+					<Label>
+						{activeTab === "person"
+							? "Zainteresowania (max 10)"
+							: "Kategoria działalności"}
+					</Label>
 					<Input
 						type="text"
 						placeholder="Szukaj zainteresowań"

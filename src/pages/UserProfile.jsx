@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { db, auth } from "../firebaseConfig";
 import { useEffect, useState } from "react";
 import {
@@ -23,13 +24,73 @@ import {
 } from "lucide-react";
 import logo from "../assets/logo.svg";
 import { useParams, useNavigate } from "react-router-dom";
-import { signOut, deleteUser } from "firebase/auth";
+import {
+	signOut,
+	deleteUser,
+	reauthenticateWithCredential,
+	EmailAuthProvider,
+} from "firebase/auth";
 import {
 	Sheet,
 	SheetContent,
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogFooter,
+} from "@/components/ui/dialog";
+import { getStorage, ref, deleteObject } from "firebase/storage";
+
+function PasswordConfirmDialog({ isOpen, onClose, onConfirm }) {
+	const [password, setPassword] = useState("");
+	const [error, setError] = useState("");
+
+	const handleConfirm = () => {
+		if (password.trim() === "") {
+			setError("Proszę wprowadzić hasło");
+			return;
+		}
+		onConfirm(password);
+	};
+
+	return (
+		<Dialog open={isOpen} onOpenChange={onClose}>
+			<DialogContent className="w-5/6 mx-auto px-8 rounded">
+				<DialogHeader>
+					<DialogTitle>Potwierdź usunięcie konta</DialogTitle>
+					<DialogDescription>
+						Proszę wprowadzić hasło, aby potwierdzić usunięcie
+						konta. Ta akcja jest nieodwracalna.
+					</DialogDescription>
+				</DialogHeader>
+				<Input
+					type="password"
+					placeholder="Wprowadź swoje hasło"
+					value={password}
+					onChange={(e) => setPassword(e.target.value)}
+				/>
+				{error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+				<DialogFooter>
+					<Button
+						variant="outline"
+						onClick={onClose}
+						className="mt-2"
+					>
+						Anuluj
+					</Button>
+					<Button variant="destructive" onClick={handleConfirm}>
+						Usuń konto
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
 
 export default function UserProfile() {
 	const { userId } = useParams();
@@ -37,6 +98,7 @@ export default function UserProfile() {
 	const [userData, setUserData] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
 
 	useEffect(() => {
@@ -68,18 +130,24 @@ export default function UserProfile() {
 			await signOut(auth);
 			navigate("/");
 		} catch (error) {
-			console.error("Error: ", error);
+			console.error(error);
 		}
 	};
 
-	const handleDeleteAccount = async () => {
+	const handleDeleteAccount = async (password) => {
 		try {
 			const user = auth.currentUser;
 			if (!user) {
-				console.error("No user is currently signed in");
 				return;
 			}
 
+			const credential = EmailAuthProvider.credential(
+				user.email,
+				password
+			);
+			await reauthenticateWithCredential(user, credential);
+
+			// Delete events created by the user
 			const eventsQuery = query(
 				collection(db, "events"),
 				where("creator", "==", user.uid)
@@ -92,8 +160,10 @@ export default function UserProfile() {
 				await deleteDoc(doc(db, "chats", eventId));
 			}
 
+			// Delete user's myevents document
 			await deleteDoc(doc(db, "myevents", user.uid));
 
+			// Remove user from chats they participated in
 			const chatsQuery = query(
 				collection(db, "chats"),
 				where("participants", "array-contains", user.uid)
@@ -110,17 +180,28 @@ export default function UserProfile() {
 				collection(db, "users"),
 				where("uid", "==", user.uid)
 			);
-			const userSnapshot = await getDocs(userQuery);
-			if (!userSnapshot.empty) {
-				const userDoc = userSnapshot.docs[0];
+			const querySnapshot = await getDocs(userQuery);
+			if (!querySnapshot.empty) {
+				const userDoc = querySnapshot.docs[0];
 				await deleteDoc(doc(db, "users", userDoc.id));
 			}
 
+			if (userData?.profileImage) {
+				const storage = getStorage();
+				const imagePath = userData?.profileImage
+					.split("?")[0]
+					.split("/o/")[1]
+					.replace("%2F", "/");
+				const imageRef = ref(storage, imagePath);
+				await deleteObject(imageRef);
+			}
+
 			await deleteUser(user);
+
 			await signOut(auth);
 			navigate("/");
 		} catch (error) {
-			console.error("Error deleting account:", error);
+			console.error(error);
 		}
 	};
 
@@ -297,7 +378,7 @@ export default function UserProfile() {
 							<Button
 								variant="destructive"
 								className="w-full"
-								onClick={handleDeleteAccount}
+								onClick={() => setIsDeleteDialogOpen(true)}
 							>
 								<Trash2 className="mr-2 h-4 w-4" />
 								Usuń konto
@@ -324,6 +405,12 @@ export default function UserProfile() {
 					</div>
 				</SheetContent>
 			</Sheet>
+
+			<PasswordConfirmDialog
+				isOpen={isDeleteDialogOpen}
+				onClose={() => setIsDeleteDialogOpen(false)}
+				onConfirm={handleDeleteAccount}
+			/>
 		</div>
 	);
 }
