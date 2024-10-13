@@ -171,6 +171,11 @@ export function MyEvents() {
 				banned: arrayUnion(eventId),
 			});
 
+			const eventRef = doc(db, "events", eventId);
+			await updateDoc(eventRef, {
+				participants: arrayRemove(user.uid),
+			});
+
 			const chatRef = doc(db, "chats", eventId);
 			await updateDoc(chatRef, {
 				participants: arrayRemove(user.uid),
@@ -199,6 +204,11 @@ export function MyEvents() {
 				joined: arrayUnion(eventId),
 			});
 
+			const eventRef = doc(db, "events", eventId);
+			await updateDoc(eventRef, {
+				participants: arrayUnion(user.uid),
+			});
+
 			const chatRef = doc(db, "chats", eventId);
 			await updateDoc(chatRef, {
 				participants: arrayUnion(user.uid),
@@ -222,6 +232,7 @@ export function MyEvents() {
 		try {
 			await deleteDoc(doc(db, "events", eventId));
 
+			// Delete the corresponding chat document
 			await deleteDoc(doc(db, "chats", eventId));
 
 			setEvents((prevEvents) => ({
