@@ -153,6 +153,7 @@ export default function UserCreator() {
 		name: name || "",
 		age: "",
 		gender: "",
+		street: "",
 		city: "",
 		description: "",
 	});
@@ -171,11 +172,12 @@ export default function UserCreator() {
 	};
 
 	const handleInterestChange = (interest) => {
+		const maxInterests = activeTab === "person" ? 10 : 3;
 		if (selectedInterests.includes(interest)) {
 			setSelectedInterests(
 				selectedInterests.filter((i) => i !== interest)
 			);
-		} else if (selectedInterests.length < 10) {
+		} else if (selectedInterests.length < maxInterests) {
 			setSelectedInterests([...selectedInterests, interest]);
 		}
 	};
@@ -241,6 +243,7 @@ export default function UserCreator() {
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+		setIsSubmitting(true);
 		if (isSubmitting) return;
 
 		if (activeTab === "person") {
@@ -248,14 +251,18 @@ export default function UserCreator() {
 				!formData.name ||
 				!formData.age ||
 				!formData.gender ||
-				!formData.city ||
 				!formData.description
 			) {
 				setError("Proszę wypełnić wszystkie pola dla osoby.");
 				return;
 			}
 		} else {
-			if (!formData.name || !formData.city || !formData.description) {
+			if (
+				!formData.name ||
+				!formData.street ||
+				!formData.city ||
+				!formData.description
+			) {
 				setError("Proszę wypełnić wszystkie pola dla organizacji.");
 				return;
 			}
@@ -269,7 +276,6 @@ export default function UserCreator() {
 			return;
 		}
 
-		setIsSubmitting(true);
 		setError("");
 
 		const userData = {
@@ -287,13 +293,13 @@ export default function UserCreator() {
 			});
 
 			navigate(`/profile/${user}`);
-			window.location.reload();
 		} catch (error) {
 			console.error(error);
 			setError(
 				"Wystąpił błąd podczas tworzenia profilu. Spróbuj ponownie."
 			);
 		}
+		setIsSubmitting(false);
 	};
 
 	return (
@@ -308,6 +314,7 @@ export default function UserCreator() {
 				onValueChange={(value) => {
 					setActiveTab(value);
 					setError("");
+					setSelectedInterests([]);
 				}}
 				className="w-full max-w-md"
 			>
@@ -394,29 +401,60 @@ export default function UserCreator() {
 						</Select>
 					</div>
 					<div className="space-y-2">
-						<Label htmlFor="city">Miasto</Label>
-						<Input
-							id="city"
-							name="city"
-							placeholder="Wprowadź miasto"
-							value={formData.city}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
 						<Label htmlFor="description">
-							Krótki opis (max 200 znaków)
+							Krótki opis (max 400 znaków)
 						</Label>
 						<Textarea
 							id="description"
 							name="description"
 							placeholder="Wprowadź krótki opis"
-							maxLength={200}
+							maxLength={400}
 							value={formData.description}
 							onChange={handleInputChange}
 							required
 						/>
+					</div>
+					<div className="space-y-2 mt-4">
+						<Label>Wybierz zainteresowania (max 10)</Label>
+						<Input
+							type="text"
+							placeholder="Szukaj zainteresowań"
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+						/>
+						<div className="flex flex-wrap gap-2 mt-2">
+							{selectedInterests.map((interest) => (
+								<Button
+									key={interest}
+									variant="secondary"
+									size="sm"
+									onClick={() =>
+										handleInterestChange(interest)
+									}
+									className="flex items-center gap-1"
+								>
+									{interest}
+									<X className="w-4 h-4" />
+								</Button>
+							))}
+						</div>
+						<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
+							{filteredInterests.map((interest) => (
+								<div
+									key={interest}
+									className={`p-2 cursor-pointer hover:bg-gray-100 ${
+										selectedInterests.includes(interest)
+											? "bg-blue-100"
+											: ""
+									}`}
+									onClick={() =>
+										handleInterestChange(interest)
+									}
+								>
+									{interest}
+								</div>
+							))}
+						</div>
 					</div>
 				</TabsContent>
 
@@ -459,6 +497,17 @@ export default function UserCreator() {
 						/>
 					</div>
 					<div className="space-y-2">
+						<Label htmlFor="street">Ulica</Label>
+						<Input
+							id="street"
+							name="street"
+							placeholder="Wprowadź ulicę"
+							value={formData.street}
+							onChange={handleInputChange}
+							required
+						/>
+					</div>
+					<div className="space-y-2">
 						<Label htmlFor="city">Miasto</Label>
 						<Input
 							id="city"
@@ -471,65 +520,68 @@ export default function UserCreator() {
 					</div>
 					<div className="space-y-2">
 						<Label htmlFor="description">
-							Krótki opis (max 200 znaków)
+							Krótki opis (max 400 znaków)
 						</Label>
 						<Textarea
 							id="description"
 							name="description"
 							placeholder="Wprowadź krótki opis"
-							maxLength={200}
+							maxLength={400}
 							value={formData.description}
 							onChange={handleInputChange}
 							required
 						/>
 					</div>
+					<div className="space-y-2 mt-4">
+						<Label>Wybierz kategorię (max 3)</Label>
+						<Input
+							type="text"
+							placeholder="Szukaj zainteresowań"
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+						/>
+						<div className="flex flex-wrap gap-2 mt-2">
+							{selectedInterests.map((interest) => (
+								<Button
+									key={interest}
+									variant="secondary"
+									size="sm"
+									onClick={() =>
+										handleInterestChange(interest)
+									}
+									className="flex items-center gap-1"
+								>
+									{interest}
+									<X className="w-4 h-4" />
+								</Button>
+							))}
+						</div>
+						<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
+							{filteredInterests.map((interest) => (
+								<div
+									key={interest}
+									className={`p-2 cursor-pointer hover:bg-gray-100 ${
+										selectedInterests.includes(interest)
+											? "bg-blue-100"
+											: ""
+									}`}
+									onClick={() =>
+										handleInterestChange(interest)
+									}
+								>
+									{interest}
+								</div>
+							))}
+						</div>
+					</div>
 				</TabsContent>
 
-				<div className="space-y-2 mt-4">
-					<Label>Zainteresowania (max 10)</Label>
-					<Input
-						type="text"
-						placeholder="Szukaj zainteresowań"
-						value={searchTerm}
-						onChange={(e) => setSearchTerm(e.target.value)}
-					/>
-					<div className="flex flex-wrap gap-2 mt-2">
-						{selectedInterests.map((interest) => (
-							<Button
-								key={interest}
-								variant="secondary"
-								size="sm"
-								onClick={() => handleInterestChange(interest)}
-								className="flex items-center gap-1"
-							>
-								{interest}
-								<X className="w-4 h-4" />
-							</Button>
-						))}
-					</div>
-					<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
-						{filteredInterests.map((interest) => (
-							<div
-								key={interest}
-								className={`p-2 cursor-pointer hover:bg-gray-100 ${
-									selectedInterests.includes(interest)
-										? "bg-blue-100"
-										: ""
-								}`}
-								onClick={() => handleInterestChange(interest)}
-							>
-								{interest}
-							</div>
-						))}
-					</div>
-				</div>
 				{error && <p className="text-red-500 pt-5">{error}</p>}
 				<Button
 					type="submit"
 					className="w-full mt-6"
 					disabled={isSubmitting}
 				>
-					{" "}
 					{isSubmitting ? (
 						<>
 							<svg
