@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,12 +13,9 @@ import {
 	Send,
 	Calendar,
 	MapPin,
-	Bell,
-	SlidersHorizontal,
 	Smile,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import logo from "../assets/logo.svg";
 import { getAuth } from "firebase/auth";
 import { db } from "../firebaseConfig";
 import {
@@ -44,9 +41,9 @@ export default function Chat() {
 	const [messages, setMessages] = useState([]);
 	const [userNames, setUserNames] = useState({});
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+	const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
 	const fileInputRef = useRef(null);
 	const scrollAreaRef = useRef(null);
-	const messagesEndRef = useRef(null);
 	const auth = getAuth();
 
 	useEffect(() => {
@@ -92,10 +89,8 @@ export default function Chat() {
 				})
 			);
 
-			// Combine joined and created events
 			allEvents = [...allEvents, ...createdEventsData];
 
-			// Remove duplicates (in case a user joined their own event)
 			const uniqueEvents = Array.from(
 				new Set(allEvents.map((event) => event.id))
 			).map((id) => allEvents.find((event) => event.id === id));
@@ -115,16 +110,36 @@ export default function Chat() {
 
 	useEffect(() => {
 		if (selectedConversation) {
-			scrollToBottom(false);
+			const scrollContainer = scrollAreaRef.current?.querySelector(
+				"[data-radix-scroll-area-viewport]"
+			);
+
+			const handleScroll = () => {
+				if (scrollContainer) {
+					const isAtBottom =
+						scrollContainer.scrollHeight -
+							scrollContainer.scrollTop -
+							scrollContainer.clientHeight <
+						10;
+					if (isAtBottom) {
+						setShouldScrollToBottom(true);
+					} else {
+						setShouldScrollToBottom(false);
+					}
+				}
+			};
+
+			if (scrollContainer) {
+				scrollContainer.addEventListener("scroll", handleScroll);
+			}
+
 			const unsubscribe = onSnapshot(
 				doc(db, "chats", selectedConversation.id),
 				async (docSnapshot) => {
-					// Updated to async function
 					if (docSnapshot.exists()) {
 						const chatData = docSnapshot.data();
 						setMessages(chatData.messages || []);
 
-						// Fetch user names for all unique senderIds
 						const senderIds = [
 							...new Set(
 								chatData.messages.map((msg) => msg.senderId)
@@ -147,22 +162,35 @@ export default function Chat() {
 				}
 			);
 
-			return () => unsubscribe();
+			return () => {
+				if (scrollContainer) {
+					scrollContainer.removeEventListener("scroll", handleScroll);
+				}
+				unsubscribe();
+			};
 		}
-	}, [selectedConversation, userNames]); // Added userNames to dependency array
+	}, [selectedConversation, userNames]);
 
 	useEffect(() => {
-		scrollToBottom();
-	}, [messages]);
+		if (shouldScrollToBottom) {
+			scrollToBottom();
+		}
+	}, [messages, shouldScrollToBottom]);
 
-	const scrollToBottom = (smooth = true) => {
-		messagesEndRef.current?.scrollIntoView({
-			behavior: smooth ? "smooth" : "auto",
-		});
+	const scrollToBottom = () => {
+		if (scrollAreaRef.current) {
+			const scrollContainer = scrollAreaRef.current.querySelector(
+				"[data-radix-scroll-area-viewport]"
+			);
+			if (scrollContainer) {
+				scrollContainer.scrollTop = scrollContainer.scrollHeight;
+			}
+		}
 	};
 
 	const handleConversationClick = (conversation) => {
 		setSelectedConversation(conversation);
+		setShouldScrollToBottom(true);
 	};
 
 	const handleBackClick = () => {
@@ -184,6 +212,7 @@ export default function Chat() {
 			});
 
 			setMessage("");
+			setShouldScrollToBottom(true);
 		}
 	};
 
@@ -203,6 +232,7 @@ export default function Chat() {
 				await updateDoc(chatRef, {
 					messages: arrayUnion(newMessage),
 				});
+				setShouldScrollToBottom(true);
 			};
 			reader.readAsDataURL(file);
 		}
@@ -210,7 +240,11 @@ export default function Chat() {
 
 	return (
 		<div className="flex flex-col h-screen bg-white">
-			<TopNavBar onSettingsClick={() => setIsSettingsOpen(true)} />
+			{!selectedConversation ? (
+				<TopNavBar onSettingsClick={() => setIsSettingsOpen(true)} />
+			) : (
+				""
+			)}
 			<div className="flex-grow overflow-hidden">
 				<AnimatePresence>
 					{!selectedConversation ? (
@@ -316,31 +350,26 @@ export default function Chat() {
 							>
 								<div className="p-4">
 									{messages.map((msg, index) => (
-										<React.Fragment key={index}>
-											<MessageBubble
-												message={msg}
-												isCurrentUser={
-													msg.senderId ===
-													auth.currentUser?.uid
-												}
-												showAvatar={
-													index === 0 ||
-													messages[index - 1]
-														.senderId !==
-														msg.senderId
-												}
-												senderName={
-													userNames[msg.senderId]
-												} // Pass senderName prop
-											/>
-										</React.Fragment>
+										<MessageBubble
+											key={index}
+											message={msg}
+											isCurrentUser={
+												msg.senderId ===
+												auth.currentUser?.uid
+											}
+											showAvatar={
+												index === 0 ||
+												messages[index - 1].senderId !==
+													msg.senderId
+											}
+											senderName={userNames[msg.senderId]}
+										/>
 									))}
-									<div ref={messagesEndRef} />
 								</div>
 							</ScrollArea>
 							<form
 								onSubmit={handleSendMessage}
-								className="p-4 border-t bg-white sticky bottom-0"
+								className="p-4 border-t bg-white mb-14"
 							>
 								<div className="flex items-center bg-gray-100 rounded-full p-2">
 									<Button
