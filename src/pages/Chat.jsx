@@ -33,6 +33,8 @@ import {
 	where,
 	getDocs,
 } from "firebase/firestore";
+import TopNavBar from "@/components/ui/TopNavBar";
+import ProfileDialogs from "@/components/ui/ProfileDialogs";
 
 export default function Chat() {
 	const [selectedConversation, setSelectedConversation] = useState(null);
@@ -40,6 +42,8 @@ export default function Chat() {
 	const [searchTerm, setSearchTerm] = useState("");
 	const [conversations, setConversations] = useState([]);
 	const [messages, setMessages] = useState([]);
+	const [userNames, setUserNames] = useState({});
+	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const fileInputRef = useRef(null);
 	const scrollAreaRef = useRef(null);
 	const messagesEndRef = useRef(null);
@@ -48,8 +52,6 @@ export default function Chat() {
 	useEffect(() => {
 		const fetchAllEvents = async () => {
 			if (!auth.currentUser) return;
-
-			// Fetch joined events
 			const myEventsRef = doc(db, "myevents", auth.currentUser.uid);
 			const myEventsDoc = await getDoc(myEventsRef);
 			let allEvents = [];
@@ -61,22 +63,34 @@ export default function Chat() {
 						const eventDoc = await getDoc(
 							doc(db, "events", eventId)
 						);
-						return { id: eventDoc.id, ...eventDoc.data() };
+						const chatDoc = await getDoc(doc(db, "chats", eventId));
+						const lastMessage = chatDoc.exists()
+							? chatDoc.data().messages[
+									chatDoc.data().messages.length - 1
+							  ]
+							: null;
+						return { id: eventId, ...eventDoc.data(), lastMessage };
 					})
 				);
 				allEvents = [...joinedEventsData];
 			}
 
-			// Fetch created events
 			const createdEventsQuery = query(
 				collection(db, "events"),
 				where("creator", "==", auth.currentUser.uid)
 			);
 			const createdEventsSnapshot = await getDocs(createdEventsQuery);
-			const createdEventsData = createdEventsSnapshot.docs.map((doc) => ({
-				id: doc.id,
-				...doc.data(),
-			}));
+			const createdEventsData = await Promise.all(
+				createdEventsSnapshot.docs.map(async (eventDoc) => {
+					const chatDoc = await getDoc(doc(db, "chats", eventDoc.id));
+					const lastMessage = chatDoc.exists()
+						? chatDoc.data().messages[
+								chatDoc.data().messages.length - 1
+						  ]
+						: null;
+					return { id: eventDoc.id, ...eventDoc.data(), lastMessage };
+				})
+			);
 
 			// Combine joined and created events
 			allEvents = [...allEvents, ...createdEventsData];
@@ -104,16 +118,38 @@ export default function Chat() {
 			scrollToBottom(false);
 			const unsubscribe = onSnapshot(
 				doc(db, "chats", selectedConversation.id),
-				(doc) => {
-					if (doc.exists()) {
-						setMessages(doc.data().messages || []);
+				async (docSnapshot) => {
+					// Updated to async function
+					if (docSnapshot.exists()) {
+						const chatData = docSnapshot.data();
+						setMessages(chatData.messages || []);
+
+						// Fetch user names for all unique senderIds
+						const senderIds = [
+							...new Set(
+								chatData.messages.map((msg) => msg.senderId)
+							),
+						];
+						const newUserNames = { ...userNames };
+						for (const senderId of senderIds) {
+							if (!newUserNames[senderId]) {
+								const userDoc = await getDoc(
+									doc(db, "users", senderId)
+								);
+								if (userDoc.exists()) {
+									newUserNames[senderId] =
+										userDoc.data().name;
+								}
+							}
+						}
+						setUserNames(newUserNames);
 					}
 				}
 			);
 
 			return () => unsubscribe();
 		}
-	}, [selectedConversation]);
+	}, [selectedConversation, userNames]); // Added userNames to dependency array
 
 	useEffect(() => {
 		scrollToBottom();
@@ -173,27 +209,8 @@ export default function Chat() {
 	};
 
 	return (
-		<div className="flex flex-col h-full bg-gray-100">
-			<div className="bg-white shadow">
-				<div className="container mx-auto px-4 flex items-center justify-between h-14">
-					<div className="flex items-center">
-						<img
-							src={logo}
-							alt="App Logo"
-							className="w-6 h-6 mr-2"
-						/>
-						<span className="font-bold text-base">NazwaApp</span>
-					</div>
-					<div className="flex items-center space-x-2">
-						<Button variant="ghost" size="icon" className="h-9 w-9">
-							<Bell className="w-5 h-5" />
-						</Button>
-						<Button variant="ghost" size="icon" className="h-9 w-9">
-							<SlidersHorizontal className="w-5 h-5" />
-						</Button>
-					</div>
-				</div>
-			</div>
+		<div className="flex flex-col h-screen bg-white">
+			<TopNavBar onSettingsClick={() => setIsSettingsOpen(true)} />
 			<div className="flex-grow overflow-hidden">
 				<AnimatePresence>
 					{!selectedConversation ? (
@@ -231,6 +248,9 @@ export default function Chat() {
 												handleConversationClick(
 													conversation
 												)
+											}
+											currentUserId={
+												auth.currentUser?.uid
 											}
 										/>
 									))}
@@ -309,6 +329,9 @@ export default function Chat() {
 														.senderId !==
 														msg.senderId
 												}
+												senderName={
+													userNames[msg.senderId]
+												} // Pass senderName prop
 											/>
 										</React.Fragment>
 									))}
@@ -366,27 +389,65 @@ export default function Chat() {
 					)}
 				</AnimatePresence>
 			</div>
+			<ProfileDialogs
+				isSettingsOpen={isSettingsOpen}
+				setIsSettingsOpen={setIsSettingsOpen}
+			/>
 		</div>
 	);
 }
 
-function ConversationItem({ conversation, onClick }) {
-	const lastMessage = conversation.lastMessage || "";
-	let truncatedMessage = "";
+function ConversationItem({ conversation, onClick, isEven, currentUserId }) {
+	const [senderName, setSenderName] = useState("");
 
-	if (typeof lastMessage === "string") {
-		truncatedMessage =
-			lastMessage.substring(0, 30) +
-			(lastMessage.length > 30 ? "..." : "");
-	} else if (React.isValidElement(lastMessage)) {
-		truncatedMessage = "Obrazek";
-	} else {
-		truncatedMessage = "Nowa wiadomość";
-	}
+	useEffect(() => {
+		const fetchSenderName = async () => {
+			if (
+				conversation.lastMessage &&
+				conversation.lastMessage.senderId !== currentUserId
+			) {
+				const usersQuery = query(
+					collection(db, "users"),
+					where("uid", "==", conversation.lastMessage.senderId)
+				);
+
+				const userSnapshot = await getDocs(usersQuery);
+
+				if (!userSnapshot.empty) {
+					const userData = userSnapshot.docs[0].data();
+					setSenderName(userData.name);
+				}
+			}
+		};
+
+		fetchSenderName();
+	}, [conversation.lastMessage, currentUserId]);
+
+	const getLastMessagePreview = () => {
+		if (!conversation.lastMessage) {
+			return "(Brak wiadomości)";
+		}
+
+		const sender =
+			conversation.lastMessage.senderId === currentUserId
+				? "Ja"
+				: senderName;
+		let content = conversation.lastMessage.content;
+
+		if (conversation.lastMessage.type === "image") {
+			content = "Obrazek";
+		} else if (content.length > 20) {
+			content = content.substring(0, 20) + "...";
+		}
+
+		return `${sender}: ${content}`;
+	};
 
 	return (
 		<div
-			className="flex items-center py-3 cursor-pointer"
+			className={`flex items-center py-3 cursor-pointer ${
+				isEven ? "bg-gray-100" : "bg-white"
+			}`}
 			onClick={onClick}
 		>
 			<Avatar className="w-12 h-12 mr-3">
@@ -396,7 +457,7 @@ function ConversationItem({ conversation, onClick }) {
 			<div className="flex-grow overflow-hidden">
 				<h3 className="font-semibold">{conversation.eventName}</h3>
 				<p className="text-sm text-gray-500 truncate">
-					{truncatedMessage}
+					{getLastMessagePreview()}
 				</p>
 			</div>
 			{conversation.unreadCount > 0 && (
@@ -408,7 +469,37 @@ function ConversationItem({ conversation, onClick }) {
 	);
 }
 
+async function getUserNameBySenderId(senderId) {
+	const q = query(collection(db, "users"), where("uid", "==", senderId));
+	const querySnapshot = await getDocs(q);
+
+	if (!querySnapshot.empty) {
+		const userDoc = querySnapshot.docs[0];
+		const { name, profileImage } = userDoc.data();
+		return { name, profileImage }; // Zwracamy imię i profilowe zdjęcie
+	}
+
+	return { name: null, profileImage: null };
+}
+
 function MessageBubble({ message, isCurrentUser, showAvatar }) {
+	const [senderName, setSenderName] = useState("");
+	const [profileImage, setProfileImage] = useState("");
+
+	useEffect(() => {
+		const fetchSenderName = async () => {
+			if (!isCurrentUser && showAvatar) {
+				const { name, profileImage } = await getUserNameBySenderId(
+					message.senderId
+				);
+				setSenderName(name);
+				setProfileImage(profileImage);
+			}
+		};
+
+		fetchSenderName();
+	}, [isCurrentUser, showAvatar, message.senderId]);
+
 	return (
 		<div
 			className={`flex ${
@@ -417,8 +508,8 @@ function MessageBubble({ message, isCurrentUser, showAvatar }) {
 		>
 			{!isCurrentUser && showAvatar && (
 				<Avatar className="w-8 h-8 mr-2">
-					<AvatarImage src={message.avatar} />
-					<AvatarFallback>{message.senderId[0]}</AvatarFallback>
+					<AvatarImage src={profileImage} />
+					<AvatarFallback>{senderName[0]}</AvatarFallback>
 				</Avatar>
 			)}
 			{!isCurrentUser && !showAvatar && <div className="w-8 mr-2" />}
@@ -428,7 +519,7 @@ function MessageBubble({ message, isCurrentUser, showAvatar }) {
 				}`}
 			>
 				{!isCurrentUser && showAvatar && (
-					<p className="font-semibold mb-1">{message.senderId}</p>
+					<p className="font-semibold mb-1">{senderName}</p>
 				)}
 				{message.type === "image" ? (
 					<img
