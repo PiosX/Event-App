@@ -25,7 +25,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { pl } from "date-fns/locale";
 import placeholder from "../assets/placeholder.jpg";
 import { db } from "../firebaseConfig";
-import { collection, addDoc, setDoc, doc } from "firebase/firestore";
+import {
+	collection,
+	addDoc,
+	setDoc,
+	doc,
+	query,
+	where,
+	getDocs,
+} from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -267,6 +275,26 @@ export default function CreateEvent({ onEventCreated }) {
 		try {
 			const imageUrl = await uploadImage(croppedImage);
 
+			// 1. Pobieramy dane użytkownika z kolekcji users
+			const usersRef = collection(db, "users");
+			const userQuery = query(usersRef, where("uid", "==", user));
+			const userDocs = await getDocs(userQuery);
+
+			let participantData;
+			if (!userDocs.empty) {
+				const userDoc = userDocs.docs[0]; // Zakładamy, że uid jest unikalne
+				const userData = userDoc.data();
+				participantData = {
+					id: user,
+					name: userData.name, // zakładam, że masz pole 'name' w dokumentach users
+					profileImage: userData.profileImage, // zakładam, że masz pole 'profileImage' w dokumentach users
+				};
+			} else {
+				// Obsługuje przypadek, gdy użytkownik nie jest znaleziony
+				console.error("User not found in users collection.");
+				return;
+			}
+
 			const eventData = {
 				eventName: eventName.trim().replace(/\s+$/, " "),
 				eventDescription: eventDescription.trim().replace(/\s+$/, " "),
@@ -278,8 +306,8 @@ export default function CreateEvent({ onEventCreated }) {
 				city: city.trim().replace(/\s+$/, " "),
 				requirements,
 				image: imageUrl,
-				creator: user,
-				participants: [user],
+				creator: user, // Używamy zaktualizowanych danych uczestnika
+				participants: [user], // Dodajemy zaktualizowanego uczestnika
 			};
 
 			// Add the event to the 'events' collection
@@ -287,7 +315,7 @@ export default function CreateEvent({ onEventCreated }) {
 
 			// Create a chat document for the event
 			const chatData = {
-				participants: [user],
+				participants: [participantData], // Używamy zaktualizowanych danych uczestnika
 				messages: [],
 			};
 			await setDoc(doc(db, "chats", eventRef.id), chatData);

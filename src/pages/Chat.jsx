@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +35,11 @@ export default function Chat() {
 	const [selectedConversation, setSelectedConversation] = useState(null);
 	const [message, setMessage] = useState("");
 	const [searchTerm, setSearchTerm] = useState("");
-	const [conversations, setConversations] = useState([]);
+	const [allConversations, setAllConversations] = useState([]);
+	const [filteredConversations, setFilteredConversations] = useState([]);
 	const [messages, setMessages] = useState([]);
 	const [userNames, setUserNames] = useState({});
+	const [profileImages, setProfileImages] = useState({});
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
 	const fileInputRef = useRef(null);
@@ -95,18 +95,19 @@ export default function Chat() {
 				new Set(allEvents.map((event) => event.id))
 			).map((id) => allEvents.find((event) => event.id === id));
 
-			setConversations(uniqueEvents);
+			setAllConversations(uniqueEvents);
+			setFilteredConversations(uniqueEvents);
 		};
 
 		fetchAllEvents();
 	}, [auth.currentUser]);
 
 	useEffect(() => {
-		const filteredConversations = conversations.filter((conv) =>
+		const filtered = allConversations.filter((conv) =>
 			conv.eventName.toLowerCase().includes(searchTerm.toLowerCase())
 		);
-		setConversations(filteredConversations);
-	}, [searchTerm]);
+		setFilteredConversations(filtered);
+	}, [searchTerm, allConversations]);
 
 	useEffect(() => {
 		if (selectedConversation) {
@@ -121,11 +122,7 @@ export default function Chat() {
 							scrollContainer.scrollTop -
 							scrollContainer.clientHeight <
 						10;
-					if (isAtBottom) {
-						setShouldScrollToBottom(true);
-					} else {
-						setShouldScrollToBottom(false);
-					}
+					setShouldScrollToBottom(isAtBottom);
 				}
 			};
 
@@ -135,29 +132,23 @@ export default function Chat() {
 
 			const unsubscribe = onSnapshot(
 				doc(db, "chats", selectedConversation.id),
-				async (docSnapshot) => {
+				(docSnapshot) => {
 					if (docSnapshot.exists()) {
 						const chatData = docSnapshot.data();
 						setMessages(chatData.messages || []);
+						const participants = chatData.participants || {};
+						const newUserNames = {};
+						const newProfileImages = {};
 
-						const senderIds = [
-							...new Set(
-								chatData.messages.map((msg) => msg.senderId)
-							),
-						];
-						const newUserNames = { ...userNames };
-						for (const senderId of senderIds) {
-							if (!newUserNames[senderId]) {
-								const userDoc = await getDoc(
-									doc(db, "users", senderId)
-								);
-								if (userDoc.exists()) {
-									newUserNames[senderId] =
-										userDoc.data().name;
-								}
-							}
+						for (const participant of participants) {
+							// Zakładam, że participant to obiekt zawierający id, name, i profileImage
+							newUserNames[participant.id] = participant.name;
+							newProfileImages[participant.id] =
+								participant.profileImage;
 						}
+
 						setUserNames(newUserNames);
+						setProfileImages(newProfileImages); // Dodaj tę linię, jeśli będziesz potrzebował profileImages
 					}
 				}
 			);
@@ -169,7 +160,7 @@ export default function Chat() {
 				unsubscribe();
 			};
 		}
-	}, [selectedConversation, userNames]);
+	}, [selectedConversation]);
 
 	useEffect(() => {
 		if (shouldScrollToBottom) {
@@ -274,20 +265,22 @@ export default function Chat() {
 							</div>
 							<ScrollArea className="flex-grow">
 								<div className="p-4">
-									{conversations.map((conversation) => (
-										<ConversationItem
-											key={conversation.id}
-											conversation={conversation}
-											onClick={() =>
-												handleConversationClick(
-													conversation
-												)
-											}
-											currentUserId={
-												auth.currentUser?.uid
-											}
-										/>
-									))}
+									{filteredConversations.map(
+										(conversation) => (
+											<ConversationItem
+												key={conversation.id}
+												conversation={conversation}
+												onClick={() =>
+													handleConversationClick(
+														conversation
+													)
+												}
+												currentUserId={
+													auth.currentUser?.uid
+												}
+											/>
+										)
+									)}
 								</div>
 							</ScrollArea>
 						</motion.div>
@@ -363,6 +356,9 @@ export default function Chat() {
 													msg.senderId
 											}
 											senderName={userNames[msg.senderId]}
+											profileImage={
+												profileImages[msg.senderId]
+											}
 										/>
 									))}
 								</div>
@@ -428,7 +424,6 @@ export default function Chat() {
 
 function ConversationItem({ conversation, onClick, isEven, currentUserId }) {
 	const [senderName, setSenderName] = useState("");
-
 	useEffect(() => {
 		const fetchSenderName = async () => {
 			if (
@@ -511,24 +506,13 @@ async function getUserNameBySenderId(senderId) {
 	return { name: null, profileImage: null };
 }
 
-function MessageBubble({ message, isCurrentUser, showAvatar }) {
-	const [senderName, setSenderName] = useState("");
-	const [profileImage, setProfileImage] = useState("");
-
-	useEffect(() => {
-		const fetchSenderName = async () => {
-			if (!isCurrentUser && showAvatar) {
-				const { name, profileImage } = await getUserNameBySenderId(
-					message.senderId
-				);
-				setSenderName(name);
-				setProfileImage(profileImage);
-			}
-		};
-
-		fetchSenderName();
-	}, [isCurrentUser, showAvatar, message.senderId]);
-
+function MessageBubble({
+	message,
+	isCurrentUser,
+	showAvatar,
+	senderName,
+	profileImage,
+}) {
 	return (
 		<div
 			className={`flex ${

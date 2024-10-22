@@ -136,17 +136,36 @@ export default function EventCard() {
 	};
 
 	const handleJoinEvent = async (eventId) => {
+		const user = auth.currentUser;
+		if (!user) return;
+
+		// 1. Aktualizujemy wydarzenia użytkownika
 		await updateUserEvents(eventId, "joined");
 
 		const eventRef = doc(db, "events", eventId);
 		await updateDoc(eventRef, {
-			participants: arrayUnion(auth.currentUser.uid),
+			participants: arrayUnion(user.uid),
 		});
 
-		const chatRef = doc(db, "chats", eventId);
-		await updateDoc(chatRef, {
-			participants: arrayUnion(auth.currentUser.uid),
-		});
+		// 2. Pobieramy dane użytkownika z kolekcji users
+		const usersRef = collection(db, "users");
+		const userQuery = query(usersRef, where("uid", "==", user.uid));
+		const userDocs = await getDocs(userQuery);
+
+		if (!userDocs.empty) {
+			const userDoc = userDocs.docs[0]; // Zakładamy, że uid jest unikalne
+			const userData = userDoc.data();
+			const participantData = {
+				id: user.uid,
+				name: userData.name, // zakładam, że masz pole 'name' w dokumentach users
+				profileImage: userData.profileImage, // zakładam, że masz pole 'profileImage' w dokumentach users
+			};
+
+			const chatRef = doc(db, "chats", eventId);
+			await updateDoc(chatRef, {
+				participants: arrayUnion(participantData), // dodajemy zaktualizowanego uczestnika
+			});
+		}
 
 		setShowCongratulations(true);
 		setSelectedEventId(null);

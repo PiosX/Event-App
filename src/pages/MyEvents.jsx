@@ -209,10 +209,24 @@ export function MyEvents() {
 				participants: arrayUnion(user.uid),
 			});
 
-			const chatRef = doc(db, "chats", eventId);
-			await updateDoc(chatRef, {
-				participants: arrayUnion(user.uid),
-			});
+			const usersRef = collection(db, "users");
+			const userQuery = query(usersRef, where("uid", "==", user.uid));
+			const userDocs = await getDocs(userQuery);
+
+			if (!userDocs.empty) {
+				const userDoc = userDocs.docs[0];
+				const userData = userDoc.data();
+				const participantData = {
+					id: user.uid,
+					name: userData.name,
+					profileImage: userData.profileImage,
+				};
+
+				const chatRef = doc(db, "chats", eventId);
+				await updateDoc(chatRef, {
+					participants: arrayUnion(participantData),
+				});
+			}
 
 			const eventToMove = events.liked.find(
 				(event) => event.id === eventId
