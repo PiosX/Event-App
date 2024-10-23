@@ -26,6 +26,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { getAuth } from "firebase/auth";
+import { processImage } from "@/lib/process-image";
 
 const interests = [
 	"Podróże",
@@ -163,12 +164,20 @@ export default function UserCreator() {
 	const user = auth.currentUser ? auth.currentUser.uid : null;
 
 	const uploadImage = async (imageDataUrl) => {
-		const response = await fetch(imageDataUrl);
-		const blob = await response.blob();
-		const storageRef = ref(storage, `images/${Date.now()}.jpg`);
-		await uploadBytes(storageRef, blob);
-		const url = await getDownloadURL(storageRef);
-		return url;
+		try {
+			const processedImageBlob = await processImage(
+				imageDataUrl,
+				200,
+				200
+			);
+			const storageRef = ref(storage, `images/${Date.now()}.webp`);
+			await uploadBytes(storageRef, processedImageBlob);
+			const url = await getDownloadURL(storageRef);
+			return url;
+		} catch (error) {
+			console.error("Error processing or uploading image:", error);
+			throw error;
+		}
 	};
 
 	const handleInterestChange = (interest) => {

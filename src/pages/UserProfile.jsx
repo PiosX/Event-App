@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import TopNavBar from "@/components/ui/TopNavBar";
 import ProfileDialogs from "@/components/ui/ProfileDialogs";
+import { processImage } from "@/lib/process-image";
 
 const interests = [
 	"Podróże",
@@ -80,6 +81,28 @@ export default function UserProfile() {
 		const fetchUserData = async () => {
 			if (userId) {
 				setLoading(true);
+
+				// Check local storage first
+				const cachedUserData = localStorage.getItem(
+					`userData_${userId}`
+				);
+				if (cachedUserData) {
+					const parsedUserData = JSON.parse(cachedUserData);
+					setUserData(parsedUserData);
+					setEditFormData({
+						name: parsedUserData.name || "",
+						age: parsedUserData.age || "",
+						gender: parsedUserData.gender || "",
+						street: parsedUserData.street || "",
+						city: parsedUserData.city || "",
+						description: parsedUserData.description || "",
+					});
+					setSelectedInterests(parsedUserData.interests || []);
+					setLoading(false);
+					return;
+				}
+
+				// If not in local storage, fetch from database
 				const q = query(
 					collection(db, "users"),
 					where("uid", "==", userId)
@@ -99,6 +122,12 @@ export default function UserProfile() {
 							description: data.description || "",
 						});
 						setSelectedInterests(data.interests || []);
+
+						// Store in local storage
+						localStorage.setItem(
+							`userData_${userId}`,
+							JSON.stringify(data)
+						);
 					});
 				} else {
 					navigate(`/profile/${currentUserId}`);
@@ -168,7 +197,21 @@ export default function UserProfile() {
 		[image]
 	);
 
-	const handleCropConfirm = () => {
+	const handleCropConfirm = async () => {
+		if (croppedImage) {
+			try {
+				const processedImageBlob = await processImage(
+					croppedImage,
+					200,
+					200
+				);
+				const processedImageUrl =
+					URL.createObjectURL(processedImageBlob);
+				setCroppedImage(processedImageUrl);
+			} catch (error) {
+				console.error("Error processing image:", error);
+			}
+		}
 		setIsDialogOpen(false);
 	};
 
@@ -191,19 +234,30 @@ export default function UserProfile() {
 
 				// Delete old image if it exists
 				if (userData.profileImage) {
-					const oldImagePath = userData.profileImage
-						.split("?")[0]
-						.split("/o/")[1]
-						.replace("%2F", "/");
-					const oldImageRef = ref(storage, oldImagePath);
-					await deleteObject(oldImageRef);
+					try {
+						const oldImagePath = userData.profileImage
+							.split("?")[0]
+							.split("/o/")[1]
+							.replace("%2F", "/");
+						const oldImageRef = ref(storage, oldImagePath);
+						await deleteObject(oldImageRef);
+					} catch (deleteError) {
+						console.warn(
+							"Failed to delete old image:",
+							deleteError
+						);
+						// Continue with the upload process even if deletion fails
+					}
 				}
 
 				// Upload new image
-				const storageRef = ref(storage, `images/${Date.now()}.jpg`);
-				const response = await fetch(croppedImage);
-				const blob = await response.blob();
-				await uploadBytes(storageRef, blob);
+				const storageRef = ref(storage, `images/${Date.now()}.webp`);
+				const processedImageBlob = await processImage(
+					croppedImage,
+					200,
+					200
+				);
+				await uploadBytes(storageRef, processedImageBlob);
 				imageUrl = await getDownloadURL(storageRef);
 			}
 
@@ -223,17 +277,24 @@ export default function UserProfile() {
 			if (!querySnapshot.empty) {
 				const userDoc = querySnapshot.docs[0];
 				await updateDoc(doc(db, "users", userDoc.id), updatedUserData);
-			} else {
-				console.error("User document not found");
-			}
 
-			setUserData(updatedUserData);
-			setIsEditMode(false);
+				// Update local storage
+				localStorage.setItem(
+					`userData_${currentUserId}`,
+					JSON.stringify(updatedUserData)
+				);
+
+				setUserData(updatedUserData);
+				setIsEditMode(false);
+			} else {
+				throw new Error("User document not found");
+			}
 		} catch (error) {
 			console.error("Error updating profile:", error);
+			// You might want to show an error message to the user here
+		} finally {
+			setLoading(false);
 		}
-
-		setLoading(false);
 	};
 
 	return (
@@ -319,7 +380,6 @@ export default function UserProfile() {
 									<>
 										<div className="space-y-2">
 											<Label htmlFor="age">Wiek</Label>
-
 											<Input
 												id="age"
 												name="age"

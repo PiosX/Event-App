@@ -493,19 +493,6 @@ function ConversationItem({ conversation, onClick, isEven, currentUserId }) {
 	);
 }
 
-async function getUserNameBySenderId(senderId) {
-	const q = query(collection(db, "users"), where("uid", "==", senderId));
-	const querySnapshot = await getDocs(q);
-
-	if (!querySnapshot.empty) {
-		const userDoc = querySnapshot.docs[0];
-		const { name, profileImage } = userDoc.data();
-		return { name, profileImage }; // Zwracamy imię i profilowe zdjęcie
-	}
-
-	return { name: null, profileImage: null };
-}
-
 function MessageBubble({
 	message,
 	isCurrentUser,
