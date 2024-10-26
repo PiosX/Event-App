@@ -29,43 +29,62 @@ export default function EventCard() {
 	const [likedEvents, setLikedEvents] = useState([]);
 	const [bannedEvents, setBannedEvents] = useState([]);
 	const [showCongratulations, setShowCongratulations] = useState(false);
-	const [userPreferences, setUserPreferences] = useState({
-		meetRequirements: true,
-		interests: [],
-		location: "",
-		usePersonLimit: false,
-		personLimit: 50,
-	});
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState(null);
+	const [userData, setUserData] = useState(null);
 
 	useEffect(() => {
-		fetchEvents();
-		fetchUserPreferences();
+		const loadUserDataAndEvents = async () => {
+			setIsLoading(true);
+			setError(null);
+			try {
+				await fetchUserData();
+			} catch (err) {
+				console.error("Error loading user data:", err);
+				setError(
+					"Wystąpił błąd podczas ładowania danych użytkownika. Proszę odświeżyć stronę."
+				);
+			} finally {
+				setIsLoading(false);
+			}
+		};
+
+		loadUserDataAndEvents();
 	}, []);
 
-	const fetchUserPreferences = async () => {
-		const user = auth.currentUser;
-		if (!user) return;
-
-		try {
-			const usersRef = collection(db, "users");
-			const q = query(usersRef, where("uid", "==", user.uid));
-			const querySnapshot = await getDocs(q);
-
-			if (!querySnapshot.empty) {
-				const userData = querySnapshot.docs[0].data();
-				const preferences = userData.preferences || {};
-				setUserPreferences(preferences);
-			}
-		} catch (error) {
-			console.error("Error fetching user preferences:", error);
+	useEffect(() => {
+		if (userData) {
+			fetchEvents();
 		}
+	}, [userData]);
+
+	const fetchUserData = async () => {
+		const user = auth.currentUser;
+		if (!user) {
+			throw new Error("Użytkownik nie jest zalogowany");
+		}
+
+		const usersRef = collection(db, "users");
+		const q = query(usersRef, where("uid", "==", user.uid));
+		const querySnapshot = await getDocs(q);
+
+		if (querySnapshot.empty) {
+			throw new Error("Nie znaleziono danych użytkownika");
+		}
+
+		const userData = querySnapshot.docs[0].data();
+		setUserData(userData);
 	};
 
 	const fetchEvents = async () => {
-		const user = auth.currentUser;
-		if (!user) return;
-
+		setIsLoading(true);
+		setError(null);
 		try {
+			const user = auth.currentUser;
+			if (!user) {
+				return;
+			}
+
 			const userEventsDoc = await getDoc(doc(db, "myevents", user.uid));
 			const userEventsData = userEventsDoc.data() || {};
 			const joinedEvents = userEventsData.joined || [];
@@ -83,15 +102,12 @@ export default function EventCard() {
 				...bannedEvents,
 			];
 
-			let q = query(eventsRef);
-
-			// Fetch all events
-			const querySnapshot = await getDocs(q);
+			const querySnapshot = await getDocs(query(eventsRef));
 
 			const fetchedEvents = await Promise.all(
 				querySnapshot.docs.map(async (doc) => {
 					const eventData = doc.data();
-					// Filter out events created by the current user or in the excluded list
+
 					if (
 						eventData.creator === user.uid ||
 						excludedEvents.includes(doc.id)
@@ -99,6 +115,89 @@ export default function EventCard() {
 						return null;
 					}
 
+					if (
+						eventData.capacity !== -1 &&
+						eventData.participants.length >= eventData.capacity
+					) {
+						return null;
+					}
+
+					// Apply filters based on user preferences and event requirements
+					if (
+						userData.preferences.meetRequirements &&
+						eventData.requirements &&
+						!eventData.requirements.none
+					) {
+						// Age requirement
+						if (eventData.requirements.age && userData.age) {
+							const [minAge, maxAge] = eventData.requirements.age
+								.split("-")
+								.map(Number);
+							if (
+								userData.age < minAge ||
+								userData.age > maxAge
+							) {
+								return null;
+							}
+						}
+
+						// Gender requirement
+						if (
+							eventData.requirements.gender &&
+							userData.gender &&
+							eventData.requirements.gender !== userData.gender
+						) {
+							return null;
+						}
+
+						// Location requirement
+						if (
+							eventData.requirements.location &&
+							userData.city &&
+							eventData.requirements.location !== userData.city
+						) {
+							return null;
+						}
+					}
+
+					// Filter by location preference
+					// if (
+					// 	userData.preferences.location &&
+					// 	eventData.city !== userData.preferences.location
+					// ) {
+					// 	return null;
+					// }
+
+					// Filter by person limit
+					if (userData.preferences.usePersonLimit) {
+						if (eventData.capacity === -1) {
+							//
+						} else if (
+							eventData.capacity >
+							userData.preferences.personLimit
+						) {
+							return null;
+						}
+					}
+
+					// Filter by interests
+					if (
+						userData.preferences.interests &&
+						userData.preferences.interests.length > 0 &&
+						eventData.interests
+					) {
+						if (
+							!eventData.interests.some((interest) =>
+								userData.preferences.interests.includes(
+									interest
+								)
+							)
+						) {
+							return null;
+						}
+					}
+
+					// Fetch creator name
 					const creatorQuery = query(
 						collection(db, "users"),
 						where("uid", "==", eventData.creator)
@@ -108,6 +207,7 @@ export default function EventCard() {
 						? creatorSnapshot.docs[0].data().name
 						: "Nieznany";
 
+					// Fetch participant images
 					const participantImages = await Promise.all(
 						eventData.participants.map(async (uid) => {
 							const participantQuery = query(
@@ -133,88 +233,15 @@ export default function EventCard() {
 				})
 			);
 
-			// Filter events based on user preferences
-			const filteredEvents = (
-				await Promise.all(
-					fetchedEvents.filter(Boolean).map(async (event) => {
-						// Filter by requirements
-						if (
-							userPreferences.meetRequirements &&
-							event.requirements &&
-							!event.requirements.none
-						) {
-							const userDoc = await getDoc(
-								doc(db, "users", user.uid)
-							);
-							const userData = userDoc.data();
-
-							if (
-								event.requirements.age &&
-								userData &&
-								userData.age
-							) {
-								const [minAge, maxAge] = event.requirements.age
-									.split("-")
-									.map(Number);
-								if (
-									userData.age < minAge ||
-									userData.age > maxAge
-								)
-									return null;
-							}
-
-							if (
-								event.requirements.gender &&
-								userData &&
-								event.requirements.gender !== userData.gender
-							)
-								return null;
-							if (
-								event.requirements.location &&
-								userData &&
-								event.requirements.location !==
-									userData.location
-							)
-								return null;
-						}
-
-						// Filter by interests
-						if (
-							userPreferences.interests &&
-							userPreferences.interests.length > 0 &&
-							event.interests
-						) {
-							if (
-								!event.interests.some((interest) =>
-									userPreferences.interests.includes(interest)
-								)
-							)
-								return null;
-						}
-
-						// Filter by location
-						if (
-							userPreferences.location &&
-							event.city !== userPreferences.location
-						)
-							return null;
-
-						// Filter by person limit
-						if (
-							userPreferences.usePersonLimit &&
-							event.capacity !== -1 &&
-							event.capacity > userPreferences.personLimit
-						)
-							return null;
-
-						return event;
-					})
-				)
-			).filter(Boolean);
-
+			const filteredEvents = fetchedEvents.filter(Boolean);
 			setEvents(filteredEvents);
-		} catch (error) {
-			console.error("Error fetching events:", error);
+		} catch (err) {
+			console.error("Error fetching events:", err);
+			setError(
+				"Wystąpił błąd podczas ładowania wydarzeń. Proszę odświeżyć stronę."
+			);
+		} finally {
+			setIsLoading(false);
 		}
 	};
 
@@ -235,44 +262,62 @@ export default function EventCard() {
 			});
 		}
 
-		// refresh
-		fetchEvents();
+		await fetchEvents();
 	};
 
 	const handleJoinEvent = async (eventId) => {
 		const user = auth.currentUser;
 		if (!user) return;
 
-		// 1. Aktualizujemy wydarzenia użytkownika
-		await updateUserEvents(eventId, "joined");
+		try {
+			// Check if the event is still available
+			const eventRef = doc(db, "events", eventId);
+			const eventDoc = await getDoc(eventRef);
+			const eventData = eventDoc.data();
 
-		const eventRef = doc(db, "events", eventId);
-		await updateDoc(eventRef, {
-			participants: arrayUnion(user.uid),
-		});
+			if (
+				eventData.capacity !== -1 &&
+				eventData.participants.length >= eventData.capacity
+			) {
+				alert("Przepraszamy, to wydarzenie jest już pełne.");
+				await fetchEvents();
+				return;
+			}
 
-		// 2. Pobieramy dane użytkownika z kolekcji users
-		const usersRef = collection(db, "users");
-		const userQuery = query(usersRef, where("uid", "==", user.uid));
-		const userDocs = await getDocs(userQuery);
+			// Update user's events
+			await updateUserEvents(eventId, "joined");
 
-		if (!userDocs.empty) {
-			const userDoc = userDocs.docs[0]; // Zakładamy, że uid jest unikalne
-			const userData = userDoc.data();
-			const participantData = {
-				id: user.uid,
-				name: userData.name,
-				profileImage: userData.profileImage,
-			};
-
-			const chatRef = doc(db, "chats", eventId);
-			await updateDoc(chatRef, {
-				participants: arrayUnion(participantData),
+			// Update event's participants
+			await updateDoc(eventRef, {
+				participants: arrayUnion(user.uid),
 			});
-		}
 
-		setShowCongratulations(true);
-		setSelectedEventId(null);
+			// Update chat participants
+			const usersRef = collection(db, "users");
+			const userQuery = query(usersRef, where("uid", "==", user.uid));
+			const userDocs = await getDocs(userQuery);
+
+			if (!userDocs.empty) {
+				const userDoc = userDocs.docs[0];
+				const userData = userDoc.data();
+				const participantData = {
+					id: user.uid,
+					name: userData.name,
+					profileImage: userData.profileImage,
+				};
+
+				const chatRef = doc(db, "chats", eventId);
+				await updateDoc(chatRef, {
+					participants: arrayUnion(participantData),
+				});
+			}
+
+			setShowCongratulations(true);
+			setSelectedEventId(null);
+			await fetchEvents();
+		} catch (err) {
+			console.error("Error joining event:", err);
+		}
 	};
 
 	const handleLikeEvent = async (eventId) => {
@@ -303,12 +348,6 @@ export default function EventCard() {
 			closeCardView();
 		}
 	};
-
-	useEffect(() => {
-		if (events.length > 0 && currentEventIndex >= events.length) {
-			setCurrentEventIndex(0);
-		}
-	}, [events, currentEventIndex]);
 
 	const nextEvent = () => {
 		if (events.length === 0) return;
@@ -341,7 +380,21 @@ export default function EventCard() {
 		setShowCongratulations(false);
 	};
 
-	const currentEvent = events[currentEventIndex];
+	if (isLoading) {
+		return (
+			<div className="h-full flex items-center justify-center bg-gray-100">
+				<p className="text-xl text-gray-600">Ładowanie...</p>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="h-full flex items-center justify-center bg-gray-100">
+				<p className="text-xl text-red-600">{error}</p>
+			</div>
+		);
+	}
 
 	return (
 		<div className="h-full bg-gray-100 flex flex-col">
@@ -381,7 +434,7 @@ export default function EventCard() {
 			<div className="flex-grow overflow-hidden relative">
 				{eventView === "card" && !selectedEventId && (
 					<AnimatePresence initial={false} custom={direction}>
-						{events.length > 0 && currentEvent ? (
+						{events.length > 0 ? (
 							<motion.div
 								key={currentEventIndex}
 								custom={direction}
@@ -402,7 +455,7 @@ export default function EventCard() {
 								className="h-full"
 							>
 								<CardView
-									event={currentEvent}
+									event={events[currentEventIndex]}
 									onSwipe={handleSwipe}
 									nextEvent={nextEvent}
 									showCloseButton={false}
@@ -464,8 +517,13 @@ export default function EventCard() {
 			{showPreferences && (
 				<PreferencesPanel
 					onClose={() => setShowPreferences(false)}
-					userPreferences={userPreferences}
-					setUserPreferences={setUserPreferences}
+					userPreferences={userData.preferences}
+					setUserPreferences={(newPreferences) => {
+						setUserData((prevData) => ({
+							...prevData,
+							preferences: newPreferences,
+						}));
+					}}
 				/>
 			)}
 			{showCongratulations && (

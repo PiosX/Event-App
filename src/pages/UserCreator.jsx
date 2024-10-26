@@ -445,11 +445,11 @@ export default function UserCreator() {
 								<SelectValue placeholder="Wybierz płeć" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="kobieta">Kobieta</SelectItem>
-								<SelectItem value="mężczyzna">
+								<SelectItem value="Kobieta">Kobieta</SelectItem>
+								<SelectItem value="Mężczyzna">
 									Mężczyzna
 								</SelectItem>
-								<SelectItem value="inne">
+								<SelectItem value="Inne">
 									Niestandardowa
 								</SelectItem>
 							</SelectContent>

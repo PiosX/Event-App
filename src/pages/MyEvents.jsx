@@ -198,13 +198,26 @@ export function MyEvents() {
 		if (!user) return;
 
 		try {
+			// Check if the event is still available
+			const eventRef = doc(db, "events", eventId);
+			const eventDoc = await getDoc(eventRef);
+			const eventData = eventDoc.data();
+			console.log(eventData);
+			if (
+				eventData.capacity !== -1 &&
+				eventData.participants.length >= eventData.capacity
+			) {
+				alert("Przepraszamy, to wydarzenie jest już pełne.");
+				await fetchEvents();
+				return;
+			}
+
 			const myEventsRef = doc(db, "myevents", user.uid);
 			await updateDoc(myEventsRef, {
 				liked: arrayRemove(eventId),
 				joined: arrayUnion(eventId),
 			});
 
-			const eventRef = doc(db, "events", eventId);
 			await updateDoc(eventRef, {
 				participants: arrayUnion(user.uid),
 			});
