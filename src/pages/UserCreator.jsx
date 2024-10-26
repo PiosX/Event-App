@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebaseConfig";
 import { collection, addDoc, doc, setDoc } from "firebase/firestore";
@@ -163,6 +163,39 @@ export default function UserCreator() {
 	const auth = getAuth();
 	const user = auth.currentUser ? auth.currentUser.uid : null;
 
+	useEffect(() => {
+		if (activeTab === "person") {
+			getUserLocation();
+		}
+	}, [activeTab]);
+
+	const getUserLocation = () => {
+		if ("geolocation" in navigator) {
+			navigator.geolocation.getCurrentPosition(
+				async (position) => {
+					const { latitude, longitude } = position.coords;
+					try {
+						const response = await fetch(
+							`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+						);
+						const data = await response.json();
+						const city =
+							data.address.city ||
+							data.address.town ||
+							data.address.village ||
+							"";
+						setFormData((prev) => ({ ...prev, city }));
+					} catch (error) {
+						console.error("Error fetching location:", error);
+					}
+				},
+				(error) => {
+					console.error("Error getting user location:", error);
+				}
+			);
+		}
+	};
+
 	const uploadImage = async (imageDataUrl) => {
 		try {
 			const processedImageBlob = await processImage(
@@ -263,6 +296,7 @@ export default function UserCreator() {
 				!formData.description
 			) {
 				setError("Proszę wypełnić wszystkie pola dla osoby.");
+				setIsSubmitting(false);
 				return;
 			}
 		} else {
@@ -273,24 +307,36 @@ export default function UserCreator() {
 				!formData.description
 			) {
 				setError("Proszę wypełnić wszystkie pola dla organizacji.");
+				setIsSubmitting(false);
 				return;
 			}
 		}
 		if (!croppedImage) {
 			setError("Proszę dodać zdjęcie profilowe.");
+			setIsSubmitting(false);
 			return;
 		}
 		if (selectedInterests.length === 0) {
 			setError("Proszę wybrać co najmniej jedno zainteresowanie.");
+			setIsSubmitting(false);
 			return;
 		}
 
 		setError("");
 
+		const preferences = {
+			interests: selectedInterests,
+			location: formData.city,
+			meetRequirements: true,
+			usePersonLimit: false,
+			personLimit: null,
+		};
+
 		const userData = {
 			...formData,
 			interests: selectedInterests,
 			uid: user,
+			preferences,
 		};
 
 		try {

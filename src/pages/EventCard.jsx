@@ -16,7 +16,6 @@ import {
 	updateDoc,
 	arrayUnion,
 	arrayRemove,
-	deleteDoc,
 } from "firebase/firestore";
 
 export default function EventCard() {
@@ -30,10 +29,37 @@ export default function EventCard() {
 	const [likedEvents, setLikedEvents] = useState([]);
 	const [bannedEvents, setBannedEvents] = useState([]);
 	const [showCongratulations, setShowCongratulations] = useState(false);
+	const [userPreferences, setUserPreferences] = useState({
+		meetRequirements: true,
+		interests: [],
+		location: "",
+		usePersonLimit: false,
+		personLimit: 50,
+	});
 
 	useEffect(() => {
 		fetchEvents();
+		fetchUserPreferences();
 	}, []);
+
+	const fetchUserPreferences = async () => {
+		const user = auth.currentUser;
+		if (!user) return;
+
+		try {
+			const usersRef = collection(db, "users");
+			const q = query(usersRef, where("uid", "==", user.uid));
+			const querySnapshot = await getDocs(q);
+
+			if (!querySnapshot.empty) {
+				const userData = querySnapshot.docs[0].data();
+				const preferences = userData.preferences || {};
+				setUserPreferences(preferences);
+			}
+		} catch (error) {
+			console.error("Error fetching user preferences:", error);
+		}
+	};
 
 	const fetchEvents = async () => {
 		const user = auth.currentUser;
@@ -107,8 +133,86 @@ export default function EventCard() {
 				})
 			);
 
-			// filtered events
-			setEvents(fetchedEvents.filter((event) => event !== null));
+			// Filter events based on user preferences
+			const filteredEvents = (
+				await Promise.all(
+					fetchedEvents.filter(Boolean).map(async (event) => {
+						// Filter by requirements
+						if (
+							userPreferences.meetRequirements &&
+							event.requirements &&
+							!event.requirements.none
+						) {
+							const userDoc = await getDoc(
+								doc(db, "users", user.uid)
+							);
+							const userData = userDoc.data();
+
+							if (
+								event.requirements.age &&
+								userData &&
+								userData.age
+							) {
+								const [minAge, maxAge] = event.requirements.age
+									.split("-")
+									.map(Number);
+								if (
+									userData.age < minAge ||
+									userData.age > maxAge
+								)
+									return null;
+							}
+
+							if (
+								event.requirements.gender &&
+								userData &&
+								event.requirements.gender !== userData.gender
+							)
+								return null;
+							if (
+								event.requirements.location &&
+								userData &&
+								event.requirements.location !==
+									userData.location
+							)
+								return null;
+						}
+
+						// Filter by interests
+						if (
+							userPreferences.interests &&
+							userPreferences.interests.length > 0 &&
+							event.interests
+						) {
+							if (
+								!event.interests.some((interest) =>
+									userPreferences.interests.includes(interest)
+								)
+							)
+								return null;
+						}
+
+						// Filter by location
+						if (
+							userPreferences.location &&
+							event.city !== userPreferences.location
+						)
+							return null;
+
+						// Filter by person limit
+						if (
+							userPreferences.usePersonLimit &&
+							event.capacity !== -1 &&
+							event.capacity > userPreferences.personLimit
+						)
+							return null;
+
+						return event;
+					})
+				)
+			).filter(Boolean);
+
+			setEvents(filteredEvents);
 		} catch (error) {
 			console.error("Error fetching events:", error);
 		}
@@ -157,13 +261,13 @@ export default function EventCard() {
 			const userData = userDoc.data();
 			const participantData = {
 				id: user.uid,
-				name: userData.name, // zakładam, że masz pole 'name' w dokumentach users
-				profileImage: userData.profileImage, // zakładam, że masz pole 'profileImage' w dokumentach users
+				name: userData.name,
+				profileImage: userData.profileImage,
 			};
 
 			const chatRef = doc(db, "chats", eventId);
 			await updateDoc(chatRef, {
-				participants: arrayUnion(participantData), // dodajemy zaktualizowanego uczestnika
+				participants: arrayUnion(participantData),
 			});
 		}
 
@@ -360,13 +464,8 @@ export default function EventCard() {
 			{showPreferences && (
 				<PreferencesPanel
 					onClose={() => setShowPreferences(false)}
-					userPreferences={{
-						interests: ["Sport", "Muzyka"],
-						location: "Warszawa",
-						usePersonLimit: true,
-						personLimit: 50,
-						meetRequirements: true,
-					}}
+					userPreferences={userPreferences}
+					setUserPreferences={setUserPreferences}
 				/>
 			)}
 			{showCongratulations && (

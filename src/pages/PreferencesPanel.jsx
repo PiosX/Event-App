@@ -5,6 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
+import { db, auth } from "../firebaseConfig";
+import {
+	collection,
+	query,
+	where,
+	getDocs,
+	updateDoc,
+} from "firebase/firestore";
 
 const interests = [
 	"Podróże",
@@ -114,17 +122,49 @@ const interests = [
 	"Projektowanie",
 ];
 
-export function PreferencesPanel({ onClose, userPreferences }) {
-	const [selectedInterests, setSelectedInterests] = useState(
-		userPreferences.interests || []
-	);
+export function PreferencesPanel({
+	onClose,
+	userPreferences,
+	setUserPreferences,
+}) {
+	const [selectedInterests, setSelectedInterests] = useState([]);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [showPersonLimit, setShowPersonLimit] = useState(false);
-	const [personLimit, setPersonLimit] = useState(
-		userPreferences.personLimit || 50
-	);
+	const [personLimit, setPersonLimit] = useState(50);
 	const [showInterestsList, setShowInterestsList] = useState(false);
+	const [location, setLocation] = useState("");
+	const [meetRequirements, setMeetRequirements] = useState(true);
 	const searchInputRef = useRef(null);
+
+	useEffect(() => {
+		fetchUserPreferences();
+	}, []);
+
+	const fetchUserPreferences = async () => {
+		const user = auth.currentUser;
+		if (user) {
+			try {
+				const usersRef = collection(db, "users");
+				const q = query(usersRef, where("uid", "==", user.uid));
+				const querySnapshot = await getDocs(q);
+
+				if (!querySnapshot.empty) {
+					const userData = querySnapshot.docs[0].data();
+					const preferences = userData.preferences || {};
+
+					setSelectedInterests(preferences.interests || []);
+					setLocation(preferences.location || "");
+					setShowPersonLimit(preferences.usePersonLimit || false);
+					setPersonLimit(preferences.personLimit || 50);
+					setMeetRequirements(preferences.meetRequirements !== false);
+				} else {
+					console.log("No user document found");
+				}
+			} catch (error) {
+				console.error("Error fetching user preferences:", error);
+			}
+		}
+	};
 
 	const handleInterestChange = (interest) => {
 		if (selectedInterests.includes(interest)) {
@@ -156,8 +196,43 @@ export function PreferencesPanel({ onClose, userPreferences }) {
 		};
 	}, []);
 
+	const handleSavePreferences = async () => {
+		const newPreferences = {
+			interests: selectedInterests,
+			location,
+			usePersonLimit: showPersonLimit,
+			personLimit,
+			meetRequirements,
+		};
+
+		setUserPreferences(newPreferences);
+
+		const user = auth.currentUser;
+		if (user) {
+			try {
+				const usersRef = collection(db, "users");
+				const q = query(usersRef, where("uid", "==", user.uid));
+				const querySnapshot = await getDocs(q);
+
+				if (!querySnapshot.empty) {
+					const userDoc = querySnapshot.docs[0];
+					await updateDoc(userDoc.ref, {
+						preferences: newPreferences,
+					});
+					console.log("Preferences saved successfully");
+				} else {
+					console.error("No user document found to update");
+				}
+			} catch (error) {
+				console.error("Error saving preferences:", error);
+			}
+		}
+
+		onClose();
+	};
+
 	return (
-		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 			<div className="bg-white rounded-lg p-6 w-5/6 max-w-md">
 				<div className="flex justify-between items-center mb-4">
 					<h2 className="text-xl font-bold">Preferencje</h2>
@@ -220,7 +295,8 @@ export function PreferencesPanel({ onClose, userPreferences }) {
 						<Input
 							id="location"
 							placeholder="Wpisz miasto lub adres"
-							defaultValue={userPreferences.location}
+							value={location}
+							onChange={(e) => setLocation(e.target.value)}
 						/>
 					</div>
 					<div>
@@ -254,12 +330,19 @@ export function PreferencesPanel({ onClose, userPreferences }) {
 						</div>
 					)}
 					<div className="flex items-center space-x-2">
-						<Checkbox id="meetRequirements" defaultChecked={true} />
+						<Checkbox
+							id="meetRequirements"
+							checked={meetRequirements}
+							onCheckedChange={setMeetRequirements}
+						/>
 						<Label htmlFor="meetRequirements">
 							Szukaj wydarzeń gdzie spełniam wymagania
 						</Label>
 					</div>
 				</div>
+				<Button className="w-full mt-4" onClick={handleSavePreferences}>
+					Zapisz preferencje
+				</Button>
 			</div>
 		</div>
 	);
