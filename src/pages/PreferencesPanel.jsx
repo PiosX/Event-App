@@ -134,6 +134,7 @@ export function PreferencesPanel({
 	const [showInterestsList, setShowInterestsList] = useState(false);
 	const [location, setLocation] = useState("");
 	const [meetRequirements, setMeetRequirements] = useState(true);
+	const [distance, setDistance] = useState(10);
 	const searchInputRef = useRef(null);
 
 	useEffect(() => {
@@ -157,6 +158,7 @@ export function PreferencesPanel({
 					setShowPersonLimit(preferences.usePersonLimit || false);
 					setPersonLimit(preferences.personLimit || 50);
 					setMeetRequirements(preferences.meetRequirements !== false);
+					setDistance(preferences.distance || 10);
 				} else {
 					console.log("No user document found");
 				}
@@ -203,6 +205,7 @@ export function PreferencesPanel({
 			usePersonLimit: showPersonLimit,
 			personLimit,
 			meetRequirements,
+			distance,
 		};
 
 		setUserPreferences(newPreferences);
@@ -297,6 +300,20 @@ export function PreferencesPanel({
 							placeholder="Wpisz miasto lub adres"
 							value={location}
 							onChange={(e) => setLocation(e.target.value)}
+						/>
+					</div>
+					<div className="pb-2">
+						<Label htmlFor="distance">
+							Szukaj w promieniu: {distance} km
+						</Label>
+						<Slider
+							id="distance"
+							min={0}
+							max={100}
+							step={1}
+							value={[distance]}
+							onValueChange={(value) => setDistance(value[0])}
+							className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:rounded-sm [&_[role=slider]]:bg-black"
 						/>
 					</div>
 					<div>

@@ -330,6 +330,7 @@ export default function UserCreator() {
 			meetRequirements: true,
 			usePersonLimit: false,
 			personLimit: null,
+			distance: 10,
 		};
 
 		const userData = {

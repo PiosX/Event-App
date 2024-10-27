@@ -18,6 +18,21 @@ import {
 	arrayRemove,
 } from "firebase/firestore";
 
+function calculateDistance(lat1, lon1, lat2, lon2) {
+	const R = 6371; // Radius of the Earth in km
+	const dLat = ((lat2 - lat1) * Math.PI) / 180;
+	const dLon = ((lon2 - lon1) * Math.PI) / 180;
+	const a =
+		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		Math.cos((lat1 * Math.PI) / 180) *
+			Math.cos((lat2 * Math.PI) / 180) *
+			Math.sin(dLon / 2) *
+			Math.sin(dLon / 2);
+	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	const distance = R * c; // Distance in km
+	return distance;
+}
+
 export default function EventCard() {
 	const [eventView, setEventView] = useState("card");
 	const [showPreferences, setShowPreferences] = useState(false);
@@ -57,6 +72,75 @@ export default function EventCard() {
 			fetchEvents();
 		}
 	}, [userData]);
+
+	const getCoordinates = async (address) => {
+		if (address === "current") {
+			return new Promise((resolve, reject) => {
+				if ("geolocation" in navigator) {
+					navigator.geolocation.getCurrentPosition(
+						async (position) => {
+							const { latitude, longitude } = position.coords;
+							try {
+								const response = await fetch(
+									`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+								);
+								const data = await response.json();
+								const city =
+									data.address.city ||
+									data.address.town ||
+									data.address.village ||
+									"";
+								resolve({
+									lat: latitude,
+									lng: longitude,
+									city,
+								});
+							} catch (error) {
+								console.error(
+									"Error fetching location:",
+									error
+								);
+								reject(error);
+							}
+						},
+						(error) => {
+							console.error(
+								"Error getting user location:",
+								error
+							);
+							reject(error);
+						}
+					);
+				} else {
+					reject(
+						new Error(
+							"Geolocation is not supported by this browser."
+						)
+					);
+				}
+			});
+		} else {
+			try {
+				const response = await fetch(
+					`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+						address
+					)}`
+				);
+				const data = await response.json();
+				if (data && data.length > 0) {
+					return {
+						lat: parseFloat(data[0].lat),
+						lng: parseFloat(data[0].lon),
+					};
+				} else {
+					throw new Error("Location not found");
+				}
+			} catch (error) {
+				console.error("Error fetching coordinates:", error);
+				throw error;
+			}
+		}
+	};
 
 	const fetchUserData = async () => {
 		const user = auth.currentUser;
@@ -103,6 +187,13 @@ export default function EventCard() {
 			];
 
 			const querySnapshot = await getDocs(query(eventsRef));
+
+			let userLocation;
+			if (userData.preferences.location) {
+				userLocation = await getCoordinates(
+					userData.preferences.location
+				);
+			}
 
 			const fetchedEvents = await Promise.all(
 				querySnapshot.docs.map(async (doc) => {
@@ -161,12 +252,28 @@ export default function EventCard() {
 					}
 
 					// Filter by location preference
-					// if (
-					// 	userData.preferences.location &&
-					// 	eventData.city !== userData.preferences.location
-					// ) {
-					// 	return null;
-					// }
+					if (userLocation && userData.preferences.distance) {
+						const eventLocation = await getCoordinates(
+							`${eventData.street}, ${eventData.city}`
+						);
+						if (eventLocation) {
+							const distance = calculateDistance(
+								userLocation.lat,
+								userLocation.lng,
+								eventLocation.lat,
+								eventLocation.lng
+							);
+							console.log(
+								`Distance to event "${
+									eventData.eventName
+								}": ${distance.toFixed(2)} km`
+							);
+
+							if (distance > userData.preferences.distance) {
+								return null;
+							}
+						}
+					}
 
 					// Filter by person limit
 					if (userData.preferences.usePersonLimit) {
