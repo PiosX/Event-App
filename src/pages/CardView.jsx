@@ -116,6 +116,12 @@ export function CardView({
 									</button>
 								</div>
 							)}
+							{event.distance !== null && (
+								<div className="absolute top-4 right-4 bg-gray-200 text-gray-800 px-2 py-2 rounded-md text-base font-medium flex items-center">
+									<MapPin className="w-5 h-5 mr-1" />
+									{event.distance.toFixed(1)} km
+								</div>
+							)}
 							<div className="absolute bottom-0 left-0 right-0 p-6">
 								<h2 className="text-white text-3xl font-bold mb-2">
 									{event.eventName}

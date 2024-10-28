@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAuth } from "firebase/auth";
 import { processImage } from "@/lib/process-image";
+import { getUserLocation, getCoordinates } from "@/lib/event-functions";
 
 const interests = [
 	"Podróże",
@@ -150,6 +151,8 @@ export default function UserCreator() {
 	const [zoom, setZoom] = useState(1);
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState("person");
+	const [userLocation, setUserLocation] = useState(null);
+	const [coordinates, setCoordinates] = useState(null);
 	const [formData, setFormData] = useState({
 		name: name || "",
 		age: "",
@@ -165,34 +168,33 @@ export default function UserCreator() {
 
 	useEffect(() => {
 		if (activeTab === "person") {
-			getUserLocation();
+			fetchUserLocation();
 		}
 	}, [activeTab]);
 
-	const getUserLocation = () => {
-		if ("geolocation" in navigator) {
-			navigator.geolocation.getCurrentPosition(
-				async (position) => {
-					const { latitude, longitude } = position.coords;
-					try {
-						const response = await fetch(
-							`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-						);
-						const data = await response.json();
-						const city =
-							data.address.city ||
-							data.address.town ||
-							data.address.village ||
-							"";
-						setFormData((prev) => ({ ...prev, city }));
-					} catch (error) {
-						console.error("Error fetching location:", error);
-					}
-				},
-				(error) => {
-					console.error("Error getting user location:", error);
-				}
-			);
+	useEffect(() => {
+		if (activeTab === "organization" && formData.street && formData.city) {
+			fetchCoordinates();
+		}
+	}, [activeTab, formData.street, formData.city]);
+
+	const fetchCoordinates = async () => {
+		const address = `${formData.street}, ${formData.city}`;
+		const coords = await getCoordinates([address]);
+		if (coords && coords[address]) {
+			setCoordinates(coords[address]);
+		}
+	};
+
+	const fetchUserLocation = async () => {
+		const location = await getUserLocation();
+		if (location) {
+			setUserLocation(location);
+			setFormData((prevData) => ({
+				...prevData,
+				street: location.street,
+				city: location.city,
+			}));
 		}
 	};
 
@@ -281,6 +283,13 @@ export default function UserCreator() {
 			...prevData,
 			[name]: value,
 		}));
+
+		if (
+			activeTab === "organization" &&
+			(name === "street" || name === "city")
+		) {
+			setCoordinates(null);
+		}
 	};
 
 	const handleSubmit = async (e) => {
@@ -324,6 +333,12 @@ export default function UserCreator() {
 
 		setError("");
 
+		if (activeTab === "organization" && !coordinates) {
+			setError("Nie można uzyskać współrzędnych dla podanego adresu.");
+			setIsSubmitting(false);
+			return;
+		}
+
 		const preferences = {
 			interests: selectedInterests,
 			location: formData.city,
@@ -333,12 +348,27 @@ export default function UserCreator() {
 			distance: 10,
 		};
 
-		const userData = {
+		let userData = {
 			...formData,
 			interests: selectedInterests,
 			uid: user,
 			preferences,
+			type: activeTab,
 		};
+
+		if (activeTab === "person") {
+			userData = {
+				...userData,
+				lat: userLocation?.lat,
+				lng: userLocation?.lng,
+			};
+		} else if (activeTab === "organization") {
+			userData = {
+				...userData,
+				lat: coordinates?.lat,
+				lng: coordinates?.lng,
+			};
+		}
 
 		try {
 			const userDocRef = await addDoc(collection(db, "users"), userData);
@@ -636,7 +666,10 @@ export default function UserCreator() {
 				<Button
 					type="submit"
 					className="w-full mt-6"
-					disabled={isSubmitting}
+					disabled={
+						isSubmitting ||
+						(activeTab === "organization" && !coordinates)
+					}
 				>
 					{isSubmitting ? (
 						<>

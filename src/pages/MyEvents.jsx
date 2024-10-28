@@ -1,13 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-	UserPlus,
-	Heart,
-	PlusCircle,
-	X,
-	ChevronLeft,
-	Calendar,
-	MapPin,
-} from "lucide-react";
+import { UserPlus, Heart, PlusCircle, Calendar, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { CardView } from "./CardView";
@@ -26,6 +18,7 @@ import {
 	arrayRemove,
 	arrayUnion,
 } from "firebase/firestore";
+import { calculateDistance } from "@/lib/event-functions";
 
 export function MyEvents() {
 	const [activeTab, setActiveTab] = useState("participating");
@@ -36,6 +29,7 @@ export function MyEvents() {
 		created: [],
 	});
 	const [loading, setLoading] = useState(true);
+	const [userData, setUserData] = useState(null);
 	const mapping = {
 		gender: "Płeć",
 		age: "Wiek",
@@ -44,13 +38,39 @@ export function MyEvents() {
 	};
 
 	useEffect(() => {
-		fetchEvents();
-	}, [activeTab]);
+		fetchUserData();
+	}, []);
+
+	useEffect(() => {
+		if (userData) {
+			fetchEvents();
+		}
+	}, [activeTab, userData]);
+
+	const fetchUserData = async () => {
+		const user = auth.currentUser;
+		if (!user) return;
+
+		try {
+			const usersRef = collection(db, "users");
+			const q = query(usersRef, where("uid", "==", user.uid));
+			const querySnapshot = await getDocs(q);
+
+			if (!querySnapshot.empty) {
+				const userDoc = querySnapshot.docs[0];
+				setUserData(userDoc.data());
+			} else {
+				console.error("User document not found");
+			}
+		} catch (error) {
+			console.error("Error fetching user data:", error);
+		}
+	};
 
 	const fetchEvents = async () => {
 		setLoading(true);
 		const user = auth.currentUser;
-		if (!user) return;
+		if (!user || !userData) return;
 
 		try {
 			let fetchedEvents = [];
@@ -95,12 +115,20 @@ export function MyEvents() {
 								})
 							);
 
+							const distance = calculateDistance(
+								userData.lat,
+								userData.lng,
+								eventData.lat,
+								eventData.lng
+							);
+
 							return {
 								id: eventDoc.id,
 								...eventData,
 								creatorName,
 								participantImages:
 									participantImages.filter(Boolean),
+								distance,
 							};
 						}
 						return null;
@@ -131,11 +159,20 @@ export function MyEvents() {
 									: null;
 							})
 						);
+
+						const distance = calculateDistance(
+							userData.lat,
+							userData.lng,
+							eventData.lat,
+							eventData.lng
+						);
+
 						return {
 							id: doc.id,
 							...eventData,
 							participantImages:
 								participantImages.filter(Boolean),
+							distance,
 						};
 					})
 				);
@@ -198,11 +235,9 @@ export function MyEvents() {
 		if (!user) return;
 
 		try {
-			// Check if the event is still available
 			const eventRef = doc(db, "events", eventId);
 			const eventDoc = await getDoc(eventRef);
 			const eventData = eventDoc.data();
-			console.log(eventData);
 			if (
 				eventData.capacity !== -1 &&
 				eventData.participants.length >= eventData.capacity
@@ -258,8 +293,6 @@ export function MyEvents() {
 	const handleDeleteEvent = async (eventId) => {
 		try {
 			await deleteDoc(doc(db, "events", eventId));
-
-			// Delete the corresponding chat document
 			await deleteDoc(doc(db, "chats", eventId));
 
 			setEvents((prevEvents) => ({
@@ -313,6 +346,12 @@ export function MyEvents() {
 											className="w-full h-56 object-cover"
 										/>
 										<div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black opacity-60"></div>
+										{event.distance !== null && (
+											<div className="absolute top-2 right-2 bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
+												<MapPin className="w-4 h-4 mr-1" />
+												{event.distance.toFixed(1)} km
+											</div>
+										)}
 										<div className="absolute bottom-2 left-2 right-2">
 											<div className="flex flex-wrap gap-2">
 												<span className="bg-black text-white px-2 py-1 rounded-full text-xs">
@@ -413,7 +452,7 @@ export function MyEvents() {
 	return (
 		<div className="h-full bg-gray-100 flex flex-col">
 			<div className="bg-white shadow z-10">
-				<div className="container mx-auto px-4 py-2 flex items-center justify-between h-14">
+				<div className="container mx-auto px-4 py-2 flex items-center  justify-between h-14">
 					<div className="flex-1"></div>
 					<div className="flex items-center space-x-4">
 						<Button

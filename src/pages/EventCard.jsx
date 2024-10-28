@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CreditCard, List, Settings } from "lucide-react";
 import { CardView } from "./CardView";
 import { ListView } from "./ListView";
@@ -17,21 +17,15 @@ import {
 	arrayUnion,
 	arrayRemove,
 } from "firebase/firestore";
-
-function calculateDistance(lat1, lon1, lat2, lon2) {
-	const R = 6371; // Radius of the Earth in km
-	const dLat = ((lat2 - lat1) * Math.PI) / 180;
-	const dLon = ((lon2 - lon1) * Math.PI) / 180;
-	const a =
-		Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-		Math.cos((lat1 * Math.PI) / 180) *
-			Math.cos((lat2 * Math.PI) / 180) *
-			Math.sin(dLon / 2) *
-			Math.sin(dLon / 2);
-	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-	const distance = R * c; // Distance in km
-	return distance;
-}
+import { Button } from "@/components/ui/button";
+import {
+	eventMeetsUserPreferences,
+	fetchCreatorName,
+	fetchParticipantImages,
+	updateChatParticipants,
+	calculateDistance,
+	getCoordinates,
+} from "@/lib/event-functions";
 
 export default function EventCard() {
 	const [eventView, setEventView] = useState("card");
@@ -48,101 +42,7 @@ export default function EventCard() {
 	const [error, setError] = useState(null);
 	const [userData, setUserData] = useState(null);
 
-	useEffect(() => {
-		const loadUserDataAndEvents = async () => {
-			setIsLoading(true);
-			setError(null);
-			try {
-				await fetchUserData();
-			} catch (err) {
-				console.error("Error loading user data:", err);
-				setError(
-					"Wystąpił błąd podczas ładowania danych użytkownika. Proszę odświeżyć stronę."
-				);
-			} finally {
-				setIsLoading(false);
-			}
-		};
-
-		loadUserDataAndEvents();
-	}, []);
-
-	useEffect(() => {
-		if (userData) {
-			fetchEvents();
-		}
-	}, [userData]);
-
-	const getCoordinates = async (address) => {
-		if (address === "current") {
-			return new Promise((resolve, reject) => {
-				if ("geolocation" in navigator) {
-					navigator.geolocation.getCurrentPosition(
-						async (position) => {
-							const { latitude, longitude } = position.coords;
-							try {
-								const response = await fetch(
-									`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-								);
-								const data = await response.json();
-								const city =
-									data.address.city ||
-									data.address.town ||
-									data.address.village ||
-									"";
-								resolve({
-									lat: latitude,
-									lng: longitude,
-									city,
-								});
-							} catch (error) {
-								console.error(
-									"Error fetching location:",
-									error
-								);
-								reject(error);
-							}
-						},
-						(error) => {
-							console.error(
-								"Error getting user location:",
-								error
-							);
-							reject(error);
-						}
-					);
-				} else {
-					reject(
-						new Error(
-							"Geolocation is not supported by this browser."
-						)
-					);
-				}
-			});
-		} else {
-			try {
-				const response = await fetch(
-					`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-						address
-					)}`
-				);
-				const data = await response.json();
-				if (data && data.length > 0) {
-					return {
-						lat: parseFloat(data[0].lat),
-						lng: parseFloat(data[0].lon),
-					};
-				} else {
-					throw new Error("Location not found");
-				}
-			} catch (error) {
-				console.error("Error fetching coordinates:", error);
-				throw error;
-			}
-		}
-	};
-
-	const fetchUserData = async () => {
+	const fetchUserData = useCallback(async () => {
 		const user = auth.currentUser;
 		if (!user) {
 			throw new Error("Użytkownik nie jest zalogowany");
@@ -158,9 +58,9 @@ export default function EventCard() {
 
 		const userData = querySnapshot.docs[0].data();
 		setUserData(userData);
-	};
+	}, []);
 
-	const fetchEvents = async () => {
+	const fetchEvents = useCallback(async () => {
 		setIsLoading(true);
 		setError(null);
 		try {
@@ -180,168 +80,81 @@ export default function EventCard() {
 			setBannedEvents(bannedEvents);
 
 			const eventsRef = collection(db, "events");
-			const excludedEvents = [
-				...joinedEvents,
-				...likedEvents,
-				...bannedEvents,
-			];
-
 			const querySnapshot = await getDocs(query(eventsRef));
 
-			let userLocation;
-			if (userData.preferences.location) {
-				userLocation = await getCoordinates(
-					userData.preferences.location
-				);
-			}
-
-			const fetchedEvents = await Promise.all(
-				querySnapshot.docs.map(async (doc) => {
+			const fetchedEvents = [];
+			const events = querySnapshot.docs
+				.map((doc) => {
 					const eventData = doc.data();
-
 					if (
 						eventData.creator === user.uid ||
-						excludedEvents.includes(doc.id)
+						[
+							...joinedEvents,
+							...likedEvents,
+							...bannedEvents,
+						].includes(doc.id) ||
+						(eventData.capacity !== -1 &&
+							eventData.participants.length >= eventData.capacity)
 					) {
-						return null;
+						return null; // Skip this event
 					}
 
-					if (
-						eventData.capacity !== -1 &&
-						eventData.participants.length >= eventData.capacity
-					) {
-						return null;
-					}
-
-					// Apply filters based on user preferences and event requirements
-					if (
-						userData.preferences.meetRequirements &&
-						eventData.requirements &&
-						!eventData.requirements.none
-					) {
-						// Age requirement
-						if (eventData.requirements.age && userData.age) {
-							const [minAge, maxAge] = eventData.requirements.age
-								.split("-")
-								.map(Number);
-							if (
-								userData.age < minAge ||
-								userData.age > maxAge
-							) {
-								return null;
-							}
-						}
-
-						// Gender requirement
-						if (
-							eventData.requirements.gender &&
-							userData.gender &&
-							eventData.requirements.gender !== userData.gender
-						) {
-							return null;
-						}
-
-						// Location requirement
-						if (
-							eventData.requirements.location &&
-							userData.city &&
-							eventData.requirements.location !== userData.city
-						) {
-							return null;
-						}
-					}
-
-					// Filter by location preference
-					if (userLocation && userData.preferences.distance) {
-						const eventLocation = await getCoordinates(
-							`${eventData.street}, ${eventData.city}`
-						);
-						if (eventLocation) {
-							const distance = calculateDistance(
-								userLocation.lat,
-								userLocation.lng,
-								eventLocation.lat,
-								eventLocation.lng
-							);
-							console.log(
-								`Distance to event "${
-									eventData.eventName
-								}": ${distance.toFixed(2)} km`
-							);
-
-							if (distance > userData.preferences.distance) {
-								return null;
-							}
-						}
-					}
-
-					// Filter by person limit
-					if (userData.preferences.usePersonLimit) {
-						if (eventData.capacity === -1) {
-							//
-						} else if (
-							eventData.capacity >
-							userData.preferences.personLimit
-						) {
-							return null;
-						}
-					}
-
-					// Filter by interests
-					if (
-						userData.preferences.interests &&
-						userData.preferences.interests.length > 0 &&
-						eventData.interests
-					) {
-						if (
-							!eventData.interests.some((interest) =>
-								userData.preferences.interests.includes(
-									interest
-								)
-							)
-						) {
-							return null;
-						}
-					}
-
-					// Fetch creator name
-					const creatorQuery = query(
-						collection(db, "users"),
-						where("uid", "==", eventData.creator)
-					);
-					const creatorSnapshot = await getDocs(creatorQuery);
-					const creatorName = !creatorSnapshot.empty
-						? creatorSnapshot.docs[0].data().name
-						: "Nieznany";
-
-					// Fetch participant images
-					const participantImages = await Promise.all(
-						eventData.participants.map(async (uid) => {
-							const participantQuery = query(
-								collection(db, "users"),
-								where("uid", "==", uid)
-							);
-							const participantSnapshot = await getDocs(
-								participantQuery
-							);
-							return !participantSnapshot.empty
-								? participantSnapshot.docs[0].data()
-										.profileImage
-								: null;
-						})
-					);
-
-					return {
-						id: doc.id,
-						...eventData,
-						creatorName,
-						participantImages: participantImages.filter(Boolean),
-					};
+					return { id: doc.id, ...eventData }; // Store event data
 				})
-			);
+				.filter(Boolean); // Filter out skipped events
 
-			const filteredEvents = fetchedEvents.filter(Boolean);
-			setEvents(filteredEvents);
+			let userLat, userLng;
+
+			if (
+				userData.preferences.location &&
+				userData.preferences.location !== ""
+			) {
+				const coordinates = await getCoordinates([
+					userData.preferences.location,
+				]);
+				if (coordinates && coordinates[userData.preferences.location]) {
+					userLat = coordinates[userData.preferences.location].lat;
+					userLng = coordinates[userData.preferences.location].lng;
+				} else {
+					userLat = userData.lat;
+					userLng = userData.lng;
+				}
+			} else {
+				userLat = userData.lat;
+				userLng = userData.lng;
+			}
+
+			const radius = userData.preferences.distance || 10;
+
+			for (const eventData of events) {
+				if (!eventData.lat || !eventData.lng) continue; // Skip if event doesn't have coordinates
+
+				const distance = calculateDistance(
+					userLat,
+					userLng,
+					eventData.lat,
+					eventData.lng
+				);
+
+				if (distance === null || distance > radius) continue; // Skip if no distance or out of radius
+
+				if (!eventMeetsUserPreferences(eventData, userData.preferences))
+					continue; // Skip if event doesn't meet user preferences
+
+				const creatorName = await fetchCreatorName(eventData.creator);
+				const participantImages = await fetchParticipantImages(
+					eventData.participants
+				);
+
+				fetchedEvents.push({
+					...eventData,
+					creatorName,
+					distance,
+					participantImages: participantImages.filter(Boolean),
+				});
+			}
+
+			setEvents(fetchedEvents);
 		} catch (err) {
 			console.error("Error fetching events:", err);
 			setError(
@@ -350,7 +163,32 @@ export default function EventCard() {
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, [userData]);
+
+	useEffect(() => {
+		const loadUserDataAndEvents = async () => {
+			setIsLoading(true);
+			setError(null);
+			try {
+				await fetchUserData();
+			} catch (err) {
+				console.error("Error loading user data:", err);
+				setError(
+					"Wystąpił błąd podczas ładowania danych użytkownika. Proszę odświeżyć stronę."
+				);
+			} finally {
+				setIsLoading(false);
+			}
+		};
+
+		loadUserDataAndEvents();
+	}, [fetchUserData]);
+
+	useEffect(() => {
+		if (userData) {
+			fetchEvents();
+		}
+	}, [userData, fetchEvents]);
 
 	const updateUserEvents = async (eventId, field) => {
 		const user = auth.currentUser;
@@ -368,7 +206,6 @@ export default function EventCard() {
 				[field]: [eventId],
 			});
 		}
-
 		await fetchEvents();
 	};
 
@@ -377,7 +214,6 @@ export default function EventCard() {
 		if (!user) return;
 
 		try {
-			// Check if the event is still available
 			const eventRef = doc(db, "events", eventId);
 			const eventDoc = await getDoc(eventRef);
 			const eventData = eventDoc.data();
@@ -391,33 +227,12 @@ export default function EventCard() {
 				return;
 			}
 
-			// Update user's events
 			await updateUserEvents(eventId, "joined");
-
-			// Update event's participants
 			await updateDoc(eventRef, {
 				participants: arrayUnion(user.uid),
 			});
 
-			// Update chat participants
-			const usersRef = collection(db, "users");
-			const userQuery = query(usersRef, where("uid", "==", user.uid));
-			const userDocs = await getDocs(userQuery);
-
-			if (!userDocs.empty) {
-				const userDoc = userDocs.docs[0];
-				const userData = userDoc.data();
-				const participantData = {
-					id: user.uid,
-					name: userData.name,
-					profileImage: userData.profileImage,
-				};
-
-				const chatRef = doc(db, "chats", eventId);
-				await updateDoc(chatRef, {
-					participants: arrayUnion(participantData),
-				});
-			}
+			await updateChatParticipants(eventId, user.uid);
 
 			setShowCongratulations(true);
 			setSelectedEventId(null);
@@ -438,17 +253,12 @@ export default function EventCard() {
 
 	const handleDislikeEvent = async (eventId) => {
 		await updateUserEvents(eventId, "banned");
-
-		const eventRef = doc(db, "events", eventId);
-		await updateDoc(eventRef, {
+		await updateDoc(doc(db, "events", eventId), {
 			participants: arrayRemove(auth.currentUser.uid),
 		});
-
-		const chatRef = doc(db, "chats", eventId);
-		await updateDoc(chatRef, {
+		await updateDoc(doc(db, "chats", eventId), {
 			participants: arrayRemove(auth.currentUser.uid),
 		});
-
 		if (eventView === "card") {
 			nextEvent();
 		} else {
@@ -509,31 +319,31 @@ export default function EventCard() {
 				<div className="container mx-auto px-4 py-2 flex items-center justify-between h-14">
 					<div className="flex-1"></div>
 					<div className="flex items-center space-x-4">
-						<button
-							className={`flex items-center space-x-1 p-2 ${
-								eventView === "card" ? "bg-gray-200" : ""
-							} rounded-md`}
+						<Button
+							variant={eventView === "card" ? "default" : "ghost"}
 							onClick={() => handleEventViewChange("card")}
+							className="flex items-center space-x-1"
 						>
 							<CreditCard className="w-5 h-5" />
 							<span className="text-sm">Widok Karty</span>
-						</button>
-						<button
-							className={`flex items-center space-x-1 p-2 ${
-								eventView === "list" ? "bg-gray-200" : ""
-							} rounded-md`}
+						</Button>
+						<Button
+							variant={eventView === "list" ? "default" : "ghost"}
 							onClick={() => handleEventViewChange("list")}
+							className="flex items-center space-x-1"
 						>
-							<span className="text-sm">Widok Listy</span>
 							<List className="w-5 h-5" />
-						</button>
+							<span className="text-sm">Widok Listy</span>
+						</Button>
 					</div>
 					<div className="flex-1 flex justify-end">
-						<button
+						<Button
+							variant="ghost"
+							size="icon"
 							onClick={() => setShowPreferences(!showPreferences)}
 						>
-							<Settings className="w-6 h-6" />
-						</button>
+							<Settings className="w-5 h-5" />
+						</Button>
 					</div>
 				</div>
 			</div>

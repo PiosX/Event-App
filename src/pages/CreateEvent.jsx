@@ -37,6 +37,7 @@ import {
 import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { processImage } from "@/lib/process-image";
+import { getCoordinates } from "@/lib/event-functions";
 
 const categories = [
 	"Podróże",
@@ -46,7 +47,104 @@ const categories = [
 	"Festiwale",
 	"Koncerty",
 	"Imprezy",
-	// ... (rest of the categories array)
+	"Gry planszowe",
+	"Gry wideo",
+	"Escape roomy",
+	"Karaoke",
+	"Gotowanie",
+	"Degustacja",
+	"Kino",
+	"Teatr",
+	"Stand-up",
+	"Taniec",
+	"Joga",
+	"Fitness",
+	"Siłownia",
+	"Bieganie",
+	"Jazda na rowerze",
+	"Siatkówka",
+	"Tenis",
+	"Badminton",
+	"Golf",
+	"Wspinaczka",
+	"Paintball",
+	"Laser tag",
+	"Squash",
+	"Zumba",
+	"Fotografia",
+	"Sztuka",
+	"Muzea",
+	"Galerie sztuki",
+	"Pikniki",
+	"Plaża",
+	"Pływanie",
+	"Surfing",
+	"Windsurfing",
+	"Nurkowanie",
+	"Żeglarstwo",
+	"Kajakarstwo",
+	"Wędkarstwo",
+	"Skoki spadochronowe",
+	"Bungee jumping",
+	"Loty balonem",
+	"Motoryzacja",
+	"Jazda konna",
+	"Snowboarding",
+	"Narciarstwo",
+	"Łyżwiarstwo",
+	"Jazda na rolkach",
+	"Parkour",
+	"Street workout",
+	"Salsa",
+	"Warsztaty plastyczne",
+	"DIY (zrób to sam)",
+	"Ogrodnictwo",
+	"Obserwacja gwiazd",
+	"Spacery",
+	"Zwiedzanie zamków",
+	"Festiwale filmowe",
+	"Aktorstwo",
+	"Cosplay",
+	"Technologia",
+	"Konferencje",
+	"Networking",
+	"Hackathony",
+	"Pisanie kreatywne",
+	"Rękodzieło",
+	"Wspólne zakupy",
+	"Gokarty",
+	"Rejsy",
+	"Warsztaty barmańskie",
+	"Imprezy tematyczne",
+	"Gry terenowe",
+	"Podchody",
+	"Zwiedzanie parków narodowych",
+	"Survival",
+	"Geocaching",
+	"Rozwój osobisty",
+	"Medytacja",
+	"Samorozwój",
+	"Konkursy talentów",
+	"Eventy startupowe",
+	"E-sport",
+	"Zwierzęta",
+	"Targi",
+	"Warsztaty aktorskie",
+	"Moda",
+	"Tatuaże",
+	"Street art",
+	"Obserwacja przyrody",
+	"Festiwale kultury",
+	"Piłka nożna",
+	"Spotkania integracyjne",
+	"Wyjście na miasto",
+	"Zoo",
+	"Poznawanie nowych ludzi",
+	"Terapie",
+	"Szkolenia",
+	"Kursy",
+	"Programowanie",
+	"Projektowanie",
 ];
 
 export default function CreateEvent({ onEventCreated }) {
@@ -66,6 +164,8 @@ export default function CreateEvent({ onEventCreated }) {
 	const [eventDescription, setEventDescription] = useState("");
 	const [street, setStreet] = useState("");
 	const [city, setCity] = useState("");
+	const [lat, setLat] = useState(null);
+	const [lng, setLng] = useState(null);
 	const [ageError, setAgeError] = useState("");
 	const navigate = useNavigate();
 	const storage = getStorage();
@@ -204,6 +304,15 @@ export default function CreateEvent({ onEventCreated }) {
 				return;
 			}
 
+			const address = `${street}, ${city}`;
+			const coordinates = await getCoordinates([address]);
+			const { lat, lng } = coordinates[address] || {};
+
+			if (!lat || !lng) {
+				console.error("Could not get coordinates for the address");
+				return;
+			}
+
 			const eventData = {
 				eventName: eventName.trim().replace(/\s+$/, " "),
 				eventDescription: eventDescription.trim().replace(/\s+$/, " "),
@@ -213,6 +322,8 @@ export default function CreateEvent({ onEventCreated }) {
 				time,
 				street: street.trim().replace(/\s+$/, " "),
 				city: city.trim().replace(/\s+$/, " "),
+				lat,
+				lng,
 				requirements,
 				image: imageUrl,
 				creator: user,
@@ -377,13 +488,14 @@ export default function CreateEvent({ onEventCreated }) {
 								locale={pl}
 								className="rounded-md border"
 								required
+								disabled={(date) => date < new Date()}
 							/>
 						</div>
 						<Input
 							type="time"
 							value={time}
 							onChange={(e) => setTime(e.target.value)}
-							className="w-24 focus:ring-black  focus:border-black"
+							className="w-24 focus:ring-black focus:border-black"
 							required
 						/>
 					</div>
