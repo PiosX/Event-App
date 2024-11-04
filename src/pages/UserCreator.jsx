@@ -28,6 +28,9 @@ import {
 import { getAuth } from "firebase/auth";
 import { processImage } from "@/lib/process-image";
 import { getUserLocation, getCoordinates } from "@/lib/event-functions";
+import Lottie from "lottie-react";
+import animationData from "../assets/animation-userCreation.json";
+import { motion, AnimatePresence } from "framer-motion";
 
 const interests = [
 	"Podróże",
@@ -162,6 +165,7 @@ export default function UserCreator() {
 		description: "",
 	});
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [showOverlay, setShowOverlay] = useState(false);
 	const storage = getStorage();
 	const auth = getAuth();
 	const user = auth.currentUser ? auth.currentUser.uid : null;
@@ -173,10 +177,14 @@ export default function UserCreator() {
 	}, [activeTab]);
 
 	useEffect(() => {
+		let timeout;
 		if (activeTab === "organization" && formData.street && formData.city) {
-			fetchCoordinates();
+			timeout = setTimeout(() => {
+				fetchCoordinates();
+			}, 500);
 		}
-	}, [activeTab, formData.street, formData.city]);
+		return () => clearTimeout(timeout);
+	}, [formData.street, formData.city]);
 
 	const fetchCoordinates = async () => {
 		const address = `${formData.street}, ${formData.city}`;
@@ -334,7 +342,9 @@ export default function UserCreator() {
 		setError("");
 
 		if (activeTab === "organization" && !coordinates) {
-			setError("Nie można uzyskać współrzędnych dla podanego adresu.");
+			setError(
+				"Nie udało się ustalić lokalizacji. Sprawdź wpisany adres i spróbuj ponownie"
+			);
 			setIsSubmitting(false);
 			return;
 		}
@@ -378,7 +388,7 @@ export default function UserCreator() {
 				profileImage: imageUrl,
 			});
 
-			navigate(`/profile/${user}`);
+			setShowOverlay(true);
 		} catch (error) {
 			console.error(error);
 			setError(
@@ -388,340 +398,396 @@ export default function UserCreator() {
 		setIsSubmitting(false);
 	};
 
+	const handleViewProfile = () => {
+		navigate(`/profile/${user}`);
+		window.location.reload();
+	};
+
 	return (
-		<form
-			onSubmit={handleSubmit}
-			className="flex flex-col items-center justify-start min-h-screen bg-background p-4"
-		>
-			<h1 className="text-2xl font-bold mb-6">Kreator użytkownika</h1>
-
-			<Tabs
-				value={activeTab}
-				onValueChange={(value) => {
-					setActiveTab(value);
-					setError("");
-					setSelectedInterests([]);
-				}}
-				className="w-full max-w-md"
+		<>
+			<form
+				onSubmit={handleSubmit}
+				className="flex flex-col items-center justify-start min-h-screen bg-background p-4"
 			>
-				<TabsList className="grid w-full grid-cols-2">
-					<TabsTrigger value="person">Osoba</TabsTrigger>
-					<TabsTrigger value="organization">Organizacja</TabsTrigger>
-				</TabsList>
+				<h1 className="text-2xl font-bold mb-6">Kreator użytkownika</h1>
 
-				<TabsContent value="person" className="space-y-4">
-					<div className="flex flex-col items-center space-y-2">
-						<div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer overflow-hidden">
-							<input
-								type="file"
-								accept="image/*"
-								className="hidden"
-								id="person-photo"
-								onChange={onFileChange}
-							/>
-							<label
-								htmlFor="person-photo"
-								className="cursor-pointer w-full h-full flex items-center justify-center"
-							>
-								{croppedImage ? (
-									<img
-										src={croppedImage}
-										alt="Avatar"
-										className="w-full h-full object-cover"
-									/>
-								) : (
-									<Plus className="w-10 h-10 text-gray-400" />
-								)}
-							</label>
-						</div>
-						<Label htmlFor="person-photo">Zdjęcie</Label>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="name">Imię</Label>
-						<Input
-							id="name"
-							name="name"
-							placeholder="Wprowadź imię"
-							value={formData.name}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="age">Wiek</Label>
-						<Input
-							id="age"
-							name="age"
-							type="number"
-							placeholder="Wprowadź wiek"
-							value={formData.age}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="gender">Płeć</Label>
-						<Select
-							name="gender"
-							onValueChange={(value) =>
-								setFormData((prev) => ({
-									...prev,
-									gender: value,
-								}))
-							}
-							value={formData.gender}
-							required
-						>
-							<SelectTrigger id="gender">
-								<SelectValue placeholder="Wybierz płeć" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="Kobieta">Kobieta</SelectItem>
-								<SelectItem value="Mężczyzna">
-									Mężczyzna
-								</SelectItem>
-								<SelectItem value="Inne">
-									Niestandardowa
-								</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="description">
-							Krótki opis (max 400 znaków)
-						</Label>
-						<Textarea
-							id="description"
-							name="description"
-							placeholder="Wprowadź krótki opis"
-							maxLength={400}
-							value={formData.description}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2 mt-4">
-						<Label>Wybierz zainteresowania (max 10)</Label>
-						<Input
-							type="text"
-							placeholder="Szukaj zainteresowań"
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-						/>
-						<div className="flex flex-wrap gap-2 mt-2">
-							{selectedInterests.map((interest) => (
-								<Button
-									key={interest}
-									variant="secondary"
-									size="sm"
-									onClick={() =>
-										handleInterestChange(interest)
-									}
-									className="flex items-center gap-1"
-								>
-									{interest}
-									<X className="w-4 h-4" />
-								</Button>
-							))}
-						</div>
-						<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
-							{filteredInterests.map((interest) => (
-								<div
-									key={interest}
-									className={`p-2 cursor-pointer hover:bg-gray-100 ${
-										selectedInterests.includes(interest)
-											? "bg-blue-100"
-											: ""
-									}`}
-									onClick={() =>
-										handleInterestChange(interest)
-									}
-								>
-									{interest}
-								</div>
-							))}
-						</div>
-					</div>
-				</TabsContent>
-
-				<TabsContent value="organization" className="space-y-4">
-					<div className="flex flex-col items-center space-y-2">
-						<div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer overflow-hidden">
-							<input
-								type="file"
-								accept="image/*"
-								className="hidden"
-								id="org-photo"
-								onChange={onFileChange}
-							/>
-							<label
-								htmlFor="org-photo"
-								className="cursor-pointer w-full h-full flex items-center justify-center"
-							>
-								{croppedImage ? (
-									<img
-										src={croppedImage}
-										alt="Avatar"
-										className="w-full h-full object-cover"
-									/>
-								) : (
-									<Plus className="w-10 h-10 text-gray-400" />
-								)}
-							</label>
-						</div>
-						<Label htmlFor="org-photo">Zdjęcie</Label>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="name">Nazwa organizacji</Label>
-						<Input
-							id="name"
-							name="name"
-							placeholder="Wprowadź nazwę organizacji"
-							value={formData.name}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="street">Ulica</Label>
-						<Input
-							id="street"
-							name="street"
-							placeholder="Wprowadź ulicę"
-							value={formData.street}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="city">Miasto</Label>
-						<Input
-							id="city"
-							name="city"
-							placeholder="Wprowadź miasto"
-							value={formData.city}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="description">
-							Krótki opis (max 400 znaków)
-						</Label>
-						<Textarea
-							id="description"
-							name="description"
-							placeholder="Wprowadź krótki opis"
-							maxLength={400}
-							value={formData.description}
-							onChange={handleInputChange}
-							required
-						/>
-					</div>
-					<div className="space-y-2 mt-4">
-						<Label>Wybierz kategorię (max 3)</Label>
-						<Input
-							type="text"
-							placeholder="Szukaj zainteresowań"
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-						/>
-						<div className="flex flex-wrap gap-2 mt-2">
-							{selectedInterests.map((interest) => (
-								<Button
-									key={interest}
-									variant="secondary"
-									size="sm"
-									onClick={() =>
-										handleInterestChange(interest)
-									}
-									className="flex items-center gap-1"
-								>
-									{interest}
-									<X className="w-4 h-4" />
-								</Button>
-							))}
-						</div>
-						<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
-							{filteredInterests.map((interest) => (
-								<div
-									key={interest}
-									className={`p-2 cursor-pointer hover:bg-gray-100 ${
-										selectedInterests.includes(interest)
-											? "bg-blue-100"
-											: ""
-									}`}
-									onClick={() =>
-										handleInterestChange(interest)
-									}
-								>
-									{interest}
-								</div>
-							))}
-						</div>
-					</div>
-				</TabsContent>
-
-				{error && <p className="text-red-500 pt-5">{error}</p>}
-				<Button
-					type="submit"
-					className="w-full mt-6"
-					disabled={
-						isSubmitting ||
-						(activeTab === "organization" && !coordinates)
-					}
+				<Tabs
+					value={activeTab}
+					onValueChange={(value) => {
+						setActiveTab(value);
+						setError("");
+						setSelectedInterests([]);
+					}}
+					className="w-full max-w-md"
 				>
-					{isSubmitting ? (
-						<>
-							<svg
-								className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-								xmlns="http://www.w3.org/2000/svg"
-								fill="none"
-								viewBox="0 0 24 24"
-							>
-								<circle
-									className="opacity-25"
-									cx="12"
-									cy="12"
-									r="10"
-									stroke="currentColor"
-									strokeWidth="4"
-								></circle>
-								<path
-									className="opacity-75"
-									fill="currentColor"
-									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-								></path>
-							</svg>
-							Tworzenie profilu...
-						</>
-					) : (
-						"Utwórz profil"
-					)}
-				</Button>
-			</Tabs>
+					<TabsList className="grid w-full grid-cols-2">
+						<TabsTrigger value="person">Osoba</TabsTrigger>
+						<TabsTrigger value="organization">
+							Organizacja
+						</TabsTrigger>
+					</TabsList>
 
-			<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-				<DialogContent className="sm:max-w-[425px]">
-					<DialogHeader>
-						<DialogTitle>Wykadruj zdjęcie</DialogTitle>
-					</DialogHeader>
-					<div className="relative w-full h-64">
-						{image && (
-							<Cropper
-								image={image}
-								crop={crop}
-								zoom={zoom}
-								aspect={1}
-								onCropChange={setCrop}
-								onCropComplete={onCropComplete}
-								onZoomChange={setZoom}
+					<TabsContent value="person" className="space-y-4">
+						<div className="flex flex-col items-center space-y-2">
+							<div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer overflow-hidden">
+								<input
+									type="file"
+									accept="image/*"
+									className="hidden"
+									id="person-photo"
+									onChange={onFileChange}
+								/>
+								<label
+									htmlFor="person-photo"
+									className="cursor-pointer w-full h-full flex items-center justify-center"
+								>
+									{croppedImage ? (
+										<img
+											src={croppedImage}
+											alt="Avatar"
+											className="w-full h-full object-cover"
+										/>
+									) : (
+										<Plus className="w-10 h-10 text-gray-400" />
+									)}
+								</label>
+							</div>
+							<Label htmlFor="person-photo">Zdjęcie</Label>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="name">Imię</Label>
+							<Input
+								id="name"
+								name="name"
+								placeholder="Wprowadź imię"
+								value={formData.name}
+								onChange={handleInputChange}
+								required
 							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="age">Wiek</Label>
+							<Input
+								id="age"
+								name="age"
+								type="number"
+								placeholder="Wprowadź wiek"
+								value={formData.age}
+								onChange={handleInputChange}
+								required
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="gender">Płeć</Label>
+							<Select
+								name="gender"
+								onValueChange={(value) =>
+									setFormData((prev) => ({
+										...prev,
+										gender: value,
+									}))
+								}
+								value={formData.gender}
+								required
+							>
+								<SelectTrigger id="gender">
+									<SelectValue placeholder="Wybierz płeć" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="Kobieta">
+										Kobieta
+									</SelectItem>
+									<SelectItem value="Mężczyzna">
+										Mężczyzna
+									</SelectItem>
+									<SelectItem value="Inne">
+										Niestandardowa
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="description">
+								Krótki opis (max 400 znaków)
+							</Label>
+							<Textarea
+								id="description"
+								name="description"
+								placeholder="Wprowadź krótki opis"
+								maxLength={400}
+								value={formData.description}
+								onChange={handleInputChange}
+								required
+							/>
+						</div>
+						<div className="space-y-2 mt-4">
+							<Label>Wybierz zainteresowania (max 10)</Label>
+							<Input
+								type="text"
+								placeholder="Szukaj zainteresowań"
+								value={searchTerm}
+								onChange={(e) => setSearchTerm(e.target.value)}
+							/>
+							<div className="flex flex-wrap gap-2 mt-2">
+								{selectedInterests.map((interest) => (
+									<Button
+										key={interest}
+										variant="secondary"
+										size="sm"
+										onClick={() =>
+											handleInterestChange(interest)
+										}
+										className="flex items-center gap-1"
+									>
+										{interest}
+										<X className="w-4 h-4" />
+									</Button>
+								))}
+							</div>
+							<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
+								{filteredInterests.map((interest) => (
+									<div
+										key={interest}
+										className={`p-2 cursor-pointer hover:bg-gray-100 ${
+											selectedInterests.includes(interest)
+												? "bg-blue-100"
+												: ""
+										}`}
+										onClick={() =>
+											handleInterestChange(interest)
+										}
+									>
+										{interest}
+									</div>
+								))}
+							</div>
+						</div>
+					</TabsContent>
+
+					<TabsContent value="organization" className="space-y-4">
+						<div className="flex flex-col items-center space-y-2">
+							<div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center cursor-pointer overflow-hidden">
+								<input
+									type="file"
+									accept="image/*"
+									className="hidden"
+									id="org-photo"
+									onChange={onFileChange}
+								/>
+								<label
+									htmlFor="org-photo"
+									className="cursor-pointer w-full h-full flex items-center justify-center"
+								>
+									{croppedImage ? (
+										<img
+											src={croppedImage}
+											alt="Avatar"
+											className="w-full h-full object-cover"
+										/>
+									) : (
+										<Plus className="w-10 h-10 text-gray-400" />
+									)}
+								</label>
+							</div>
+							<Label htmlFor="org-photo">Zdjęcie</Label>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="name">Nazwa organizacji</Label>
+							<Input
+								id="name"
+								name="name"
+								placeholder="Wprowadź nazwę organizacji"
+								value={formData.name}
+								onChange={handleInputChange}
+								required
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="street">Ulica</Label>
+							<Input
+								id="street"
+								name="street"
+								placeholder="Wprowadź ulicę"
+								value={formData.street}
+								onChange={handleInputChange}
+								required
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="city">Miasto</Label>
+							<Input
+								id="city"
+								name="city"
+								placeholder="Wprowadź miasto"
+								value={formData.city}
+								onChange={handleInputChange}
+								required
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="description">
+								Krótki opis (max 400 znaków)
+							</Label>
+							<Textarea
+								id="description"
+								name="description"
+								placeholder="Wprowadź krótki opis"
+								maxLength={400}
+								value={formData.description}
+								onChange={handleInputChange}
+								required
+							/>
+						</div>
+						<div className="space-y-2 mt-4">
+							<Label>Wybierz kategorię (max 3)</Label>
+							<Input
+								type="text"
+								placeholder="Szukaj zainteresowań"
+								value={searchTerm}
+								onChange={(e) => setSearchTerm(e.target.value)}
+							/>
+							<div className="flex flex-wrap gap-2 mt-2">
+								{selectedInterests.map((interest) => (
+									<Button
+										key={interest}
+										variant="secondary"
+										size="sm"
+										onClick={() =>
+											handleInterestChange(interest)
+										}
+										className="flex items-center gap-1"
+									>
+										{interest}
+										<X className="w-4 h-4" />
+									</Button>
+								))}
+							</div>
+							<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
+								{filteredInterests.map((interest) => (
+									<div
+										key={interest}
+										className={`p-2 cursor-pointer hover:bg-gray-100 ${
+											selectedInterests.includes(interest)
+												? "bg-blue-100"
+												: ""
+										}`}
+										onClick={() =>
+											handleInterestChange(interest)
+										}
+									>
+										{interest}
+									</div>
+								))}
+							</div>
+						</div>
+					</TabsContent>
+
+					{error && <p className="text-red-500 pt-5">{error}</p>}
+					<Button
+						type="submit"
+						className="w-full mt-6"
+						disabled={
+							isSubmitting ||
+							(activeTab === "organization" && !coordinates)
+						}
+					>
+						{isSubmitting ? (
+							<>
+								<svg
+									className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										className="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										strokeWidth="4"
+									></circle>
+									<path
+										className="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path>
+								</svg>
+								Tworzenie profilu...
+							</>
+						) : (
+							"Utwórz profil"
 						)}
-					</div>
-					<Button onClick={handleCropConfirm}>Zatwierdź</Button>
-				</DialogContent>
-			</Dialog>
-		</form>
+					</Button>
+				</Tabs>
+
+				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+					<DialogContent className="sm:max-w-[425px]">
+						<DialogHeader>
+							<DialogTitle>Wykadruj zdjęcie</DialogTitle>
+						</DialogHeader>
+						<div className="relative w-full h-64">
+							{image && (
+								<Cropper
+									image={image}
+									crop={crop}
+									zoom={zoom}
+									aspect={1}
+									onCropChange={setCrop}
+									onCropComplete={onCropComplete}
+									onZoomChange={setZoom}
+								/>
+							)}
+						</div>
+						<Button onClick={handleCropConfirm}>Zatwierdź</Button>
+					</DialogContent>
+				</Dialog>
+			</form>
+			<AnimatePresence>
+				{showOverlay && (
+					<motion.div
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+						className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50"
+					>
+						<motion.div
+							initial={{ scale: 0.5, opacity: 0 }}
+							animate={{ scale: 1, opacity: 1 }}
+							exit={{ scale: 0.5, opacity: 0 }}
+							transition={{ duration: 0.5 }}
+							className="w-64 h-64 mb-2"
+						>
+							<Lottie
+								animationData={animationData}
+								loop={false}
+								autoplay={showOverlay}
+							/>
+						</motion.div>
+						<motion.h2
+							initial={{ y: 20, opacity: 0 }}
+							animate={{ y: 0, opacity: 1 }}
+							exit={{ y: 20, opacity: 0 }}
+							className="text-2xl font-bold text-gray-800 mb-8"
+						>
+							Profil został utworzony!
+						</motion.h2>
+						<motion.div
+							initial={{ y: 20, opacity: 0 }}
+							animate={{ y: 0, opacity: 1 }}
+							exit={{ y: 20, opacity: 0 }}
+							className="absolute bottom-8 left-0 right-0 flex justify-center"
+						>
+							<Button
+								onClick={handleViewProfile}
+								className="rounded-full px-12 py-6 text-lg"
+							>
+								Zobacz profil
+							</Button>
+						</motion.div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</>
 	);
 }
