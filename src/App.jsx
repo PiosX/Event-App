@@ -6,7 +6,13 @@ import {
 	Navigate,
 } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import {
+	collection,
+	getDocs,
+	query,
+	where,
+	updateDoc,
+} from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import EventCard from "./pages/EventCard";
 import Intro from "./pages/Intro";
@@ -17,6 +23,7 @@ import MyEvents from "./pages/MyEvents";
 import Chat from "./pages/Chat";
 import CreateEvent from "./pages/CreateEvent";
 import Layout from "./components/Layout";
+import { getUserLocation } from "./lib/event-functions";
 
 function App() {
 	const [user, setUser] = useState(null);
@@ -32,9 +39,10 @@ function App() {
 					collection(db, "users"),
 					where("uid", "==", user.uid)
 				);
-				const queryy = await getDocs(q);
-				if (!queryy.empty) {
+				const querySnapshot = await getDocs(q);
+				if (!querySnapshot.empty) {
 					setUserExists(true);
+					updateUserLocation(querySnapshot.docs[0].id);
 				} else {
 					setUserExists(false);
 				}
@@ -46,6 +54,28 @@ function App() {
 
 		return () => unsubscribe();
 	}, []);
+
+	const updateUserLocation = async (userId) => {
+		// przy każdym odświeżeniu
+		try {
+			const location = await getUserLocation();
+			if (location) {
+				const userRef = collection(db, "users");
+				const q = query(userRef, where("uid", "==", userId));
+				const querySnapshot = await getDocs(q);
+
+				if (!querySnapshot.empty) {
+					const userDoc = querySnapshot.docs[0];
+					await updateDoc(userDoc.ref, {
+						lat: location.lat,
+						lng: location.lng,
+					});
+				}
+			}
+		} catch (error) {
+			console.error("Error updating user location:", error);
+		}
+	};
 
 	if (loading) {
 		return (

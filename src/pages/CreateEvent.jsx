@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,9 @@ import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { processImage } from "@/lib/process-image";
 import { getCoordinates } from "@/lib/event-functions";
+import animationData from "../assets/animation-createrEvent.json";
+import Lottie from "lottie-react";
+import { motion } from "framer-motion";
 
 const categories = [
 	"Podróże",
@@ -164,9 +167,9 @@ export default function CreateEvent({ onEventCreated }) {
 	const [eventDescription, setEventDescription] = useState("");
 	const [street, setStreet] = useState("");
 	const [city, setCity] = useState("");
-	const [lat, setLat] = useState(null);
-	const [lng, setLng] = useState(null);
 	const [ageError, setAgeError] = useState("");
+	const [locationError, setLocationError] = useState("");
+	const [showOverlay, setShowOverlay] = useState(false);
 	const navigate = useNavigate();
 	const storage = getStorage();
 	const auth = getAuth();
@@ -309,7 +312,9 @@ export default function CreateEvent({ onEventCreated }) {
 			const { lat, lng } = coordinates[address] || {};
 
 			if (!lat || !lng) {
-				console.error("Could not get coordinates for the address");
+				setLocationError(
+					"Nie udało się ustalić lokalizacji wydarzenia. Sprawdź wpisany adres i spróbuj ponownie"
+				);
 				return;
 			}
 
@@ -338,12 +343,15 @@ export default function CreateEvent({ onEventCreated }) {
 			};
 			await setDoc(doc(db, "chats", eventRef.id), chatData);
 
-			navigate(`/myevents`);
+			setShowOverlay(true);
 			if (onEventCreated) {
 				onEventCreated(eventData);
 			}
 		} catch (error) {
 			console.error(error);
+			setLocationError(
+				"Wystąpił błąd podczas tworzenia wydarzenia. Spróbuj ponownie."
+			);
 		}
 	};
 
@@ -351,330 +359,399 @@ export default function CreateEvent({ onEventCreated }) {
 		setter(e.target.value.replace(/\s+$/, " "));
 	};
 
+	const handleViewMyEvents = () => {
+		navigate("/myevents");
+	};
+
 	return (
-		<form
-			onSubmit={handleSubmit}
-			className="flex flex-col items-center justify-start min-h-screen bg-background"
-		>
-			<div className="w-full max-w-md p-4 space-y-4 overflow-y-auto h-[calc(100vh-4rem)]">
-				<h1 className="text-2xl font-bold mb-6 text-center">
-					Utwórz nowe wydarzenie
-				</h1>
+		<>
+			<form
+				onSubmit={handleSubmit}
+				className="flex flex-col items-center justify-start min-h-screen bg-background"
+			>
+				<div className="w-full max-w-md p-4 space-y-4 overflow-y-auto h-[calc(100vh-4rem)]">
+					<h1 className="text-2xl font-bold mb-6 text-center">
+						Utwórz nowe wydarzenie
+					</h1>
 
-				<div className="flex flex-col items-center space-y-2">
-					<div className="w-full h-48 bg-gray-200 flex items-center justify-center cursor-pointer overflow-hidden rounded-lg">
-						<input
-							type="file"
-							accept="image/*"
-							className="hidden"
-							id="event-photo"
-							onChange={onFileChange}
-						/>
-						<label
-							htmlFor="event-photo"
-							className="cursor-pointer w-full h-full flex items-center justify-center"
-						>
-							<img
-								src={croppedImage}
-								alt="Event"
-								className="w-full h-full object-cover"
+					<div className="flex flex-col items-center space-y-2">
+						<div className="w-full h-48 bg-gray-200 flex items-center justify-center cursor-pointer overflow-hidden rounded-lg">
+							<input
+								type="file"
+								accept="image/*"
+								className="hidden"
+								id="event-photo"
+								onChange={onFileChange}
 							/>
-						</label>
-					</div>
-					<Label htmlFor="event-photo">Zdjęcie wydarzenia</Label>
-				</div>
-
-				<div className="space-y-2">
-					<Label htmlFor="event-name">Nazwa wydarzenia</Label>
-					<Input
-						id="event-name"
-						placeholder="Wprowadź nazwę wydarzenia"
-						required
-						value={eventName}
-						onChange={handleInputChange(setEventName)}
-					/>
-				</div>
-
-				<div className="space-y-2">
-					<Label htmlFor="event-description">
-						Krótki opis (max 200 znaków)
-					</Label>
-					<Textarea
-						id="event-description"
-						placeholder="Wprowadź krótki opis"
-						maxLength={200}
-						required
-						value={eventDescription}
-						onChange={handleInputChange(setEventDescription)}
-					/>
-				</div>
-
-				<div className="space-y-2">
-					<Label>Kategorie wydarzenia (max 3)</Label>
-					<Input
-						type="text"
-						placeholder="Szukaj kategorii"
-						value={searchTerm}
-						onChange={(e) => setSearchTerm(e.target.value)}
-					/>
-					<div className="flex flex-wrap gap-2 mt-2">
-						{selectedCategories.map((category) => (
-							<Button
-								key={category}
-								variant="secondary"
-								size="sm"
-								onClick={() => handleCategoryChange(category)}
-								className="flex items-center gap-1"
+							<label
+								htmlFor="event-photo"
+								className="cursor-pointer w-full h-full flex items-center justify-center"
 							>
-								{category}
-								<X className="w-4 h-4" />
-							</Button>
-						))}
-					</div>
-					<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
-						{filteredCategories.map((category) => (
-							<div
-								key={category}
-								className={`p-2 cursor-pointer hover:bg-gray-100 ${
-									selectedCategories.includes(category)
-										? "bg-blue-100"
-										: ""
-								}`}
-								onClick={() => handleCategoryChange(category)}
-							>
-								{category}
-							</div>
-						))}
-					</div>
-				</div>
-
-				<div className="space-y-2">
-					<Label htmlFor="capacity">Liczba miejsc</Label>
-					<div className="flex items-center space-x-2">
-						<Input
-							id="capacity"
-							type="number"
-							min="2"
-							placeholder="Wprowadź liczbę miejsc"
-							value={isUnlimited ? "" : capacity}
-							onChange={(e) => setCapacity(e.target.value)}
-							className="flex-grow"
-							required={!isUnlimited}
-							disabled={isUnlimited}
-						/>
-						<Button
-							type="button"
-							variant={isUnlimited ? "default" : "outline"}
-							onClick={() => {
-								setIsUnlimited(!isUnlimited);
-								if (!isUnlimited) {
-									setCapacity("");
-								}
-							}}
-						>
-							<Infinity className="w-6 h-6" />
-						</Button>
-					</div>
-				</div>
-
-				<div className="space-y-2">
-					<Label>Data i godzina rozpoczęcia</Label>
-					<div className="flex space-x-2">
-						<div className="flex-grow">
-							<Calendar
-								mode="single"
-								selected={date}
-								onSelect={setDate}
-								locale={pl}
-								className="rounded-md border"
-								required
-								disabled={(date) => date < new Date()}
-							/>
+								<img
+									src={croppedImage}
+									alt="Event"
+									className="w-full h-full object-cover"
+								/>
+							</label>
 						</div>
+						<Label htmlFor="event-photo">Zdjęcie wydarzenia</Label>
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="event-name">Nazwa wydarzenia</Label>
 						<Input
-							type="time"
-							value={time}
-							onChange={(e) => setTime(e.target.value)}
-							className="w-24 focus:ring-black focus:border-black"
+							id="event-name"
+							placeholder="Wprowadź nazwę wydarzenia"
 							required
+							value={eventName}
+							onChange={handleInputChange(setEventName)}
 						/>
 					</div>
-				</div>
 
-				<div className="space-y-2">
-					<Label htmlFor="location">Lokalizacja</Label>
-					<Input
-						id="street"
-						placeholder="Ulica"
-						required
-						value={street}
-						onChange={handleInputChange(setStreet)}
-					/>
-					<Input
-						id="city"
-						placeholder="Miasto"
-						required
-						value={city}
-						onChange={handleInputChange(setCity)}
-					/>
-				</div>
+					<div className="space-y-2">
+						<Label htmlFor="event-description">
+							Krótki opis (max 200 znaków)
+						</Label>
+						<Textarea
+							id="event-description"
+							placeholder="Wprowadź krótki opis"
+							maxLength={200}
+							required
+							value={eventDescription}
+							onChange={handleInputChange(setEventDescription)}
+						/>
+					</div>
 
-				<div className="space-y-2">
-					<Label>Wymagania/kryteria dołączenia</Label>
-					<div className="flex flex-wrap gap-2">
-						{["none", "age", "gender", "location", "other"].map(
-							(req) => (
+					<div className="space-y-2">
+						<Label>Kategorie wydarzenia (max 3)</Label>
+						<Input
+							type="text"
+							placeholder="Szukaj kategorii"
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+						/>
+						<div className="flex flex-wrap gap-2 mt-2">
+							{selectedCategories.map((category) => (
 								<Button
-									key={req}
-									type="button"
-									variant={
-										req in requirements
-											? "default"
-											: "outline"
+									key={category}
+									variant="secondary"
+									size="sm"
+									onClick={() =>
+										handleCategoryChange(category)
 									}
-									onClick={() => handleRequirementChange(req)}
-									disabled={
-										req === "none"
-											? false
-											: "none" in requirements
+									className="flex items-center gap-1"
+								>
+									{category}
+									<X className="w-4 h-4" />
+								</Button>
+							))}
+						</div>
+						<div className="max-h-40 overflow-y-auto border rounded-md mt-2">
+							{filteredCategories.map((category) => (
+								<div
+									key={category}
+									className={`p-2 cursor-pointer  hover:bg-gray-100 ${
+										selectedCategories.includes(category)
+											? "bg-blue-100"
+											: ""
+									}`}
+									onClick={() =>
+										handleCategoryChange(category)
 									}
 								>
-									{req === "none"
-										? "Brak"
-										: req === "age"
-										? "Wiek"
-										: req === "gender"
-										? "Płeć"
-										: req === "location"
-										? "Lokalizacja"
-										: "Inne"}
-								</Button>
-							)
-						)}
+									{category}
+								</div>
+							))}
+						</div>
 					</div>
-					{"age" in requirements && (
-						<div className="flex flex-col space-y-2">
-							<div className="flex space-x-2">
-								<Input
-									placeholder="Min wiek"
-									type="number"
-									min="1"
-									value={
-										requirements.age?.split("-")[0] || ""
+
+					<div className="space-y-2">
+						<Label htmlFor="capacity">Liczba miejsc</Label>
+						<div className="flex items-center space-x-2">
+							<Input
+								id="capacity"
+								type="number"
+								min="2"
+								placeholder="Wprowadź liczbę miejsc"
+								value={isUnlimited ? "" : capacity}
+								onChange={(e) => setCapacity(e.target.value)}
+								className="flex-grow"
+								required={!isUnlimited}
+								disabled={isUnlimited}
+							/>
+							<Button
+								type="button"
+								variant={isUnlimited ? "default" : "outline"}
+								onClick={() => {
+									setIsUnlimited(!isUnlimited);
+									if (!isUnlimited) {
+										setCapacity("");
 									}
-									onChange={(e) => {
-										const minAge = e.target.value;
-										const maxAge =
-											requirements.age?.split("-")[1] ||
-											"";
-										if (
-											maxAge &&
-											parseInt(minAge) > parseInt(maxAge)
-										) {
-											setAgeError(
-												"Minimalny wiek nie  może być większy od maksymalnego"
-											);
-										} else {
-											setAgeError("");
-										}
-										handleRequirementValueChange(
-											"age",
-											`${minAge}-${maxAge}`
-										);
-									}}
+								}}
+							>
+								<Infinity className="w-6 h-6" />
+							</Button>
+						</div>
+					</div>
+
+					<div className="space-y-2">
+						<Label>Data i godzina rozpoczęcia</Label>
+						<div className="flex space-x-2">
+							<div className="flex-grow">
+								<Calendar
+									mode="single"
+									selected={date}
+									onSelect={setDate}
+									locale={pl}
+									className="rounded-md border"
 									required
-								/>
-								<Input
-									placeholder="Max wiek"
-									type="number"
-									min="1"
-									value={
-										requirements.age?.split("-")[1] || ""
-									}
-									onChange={(e) => {
-										const maxAge = e.target.value;
-										const minAge =
-											requirements.age?.split("-")[0] ||
-											"";
-										if (
-											parseInt(maxAge) < parseInt(minAge)
-										) {
-											setAgeError(
-												"Minimalny wiek nie może być większy od maksymalnego"
-											);
-										} else {
-											setAgeError("");
-										}
-										handleRequirementValueChange(
-											"age",
-											`${minAge}-${maxAge}`
-										);
-									}}
-									required
+									disabled={(date) => date < new Date()}
 								/>
 							</div>
-							{ageError && (
-								<p className="text-red-500 text-sm">
-									{ageError}
-								</p>
+							<Input
+								type="time"
+								value={time}
+								onChange={(e) => setTime(e.target.value)}
+								className="w-24 focus:ring-black focus:border-black"
+								required
+							/>
+						</div>
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="location">Lokalizacja</Label>
+						<Input
+							id="street"
+							placeholder="Ulica"
+							required
+							value={street}
+							onChange={handleInputChange(setStreet)}
+						/>
+						<Input
+							id="city"
+							placeholder="Miasto"
+							required
+							value={city}
+							onChange={handleInputChange(setCity)}
+						/>
+					</div>
+
+					<div className="space-y-2">
+						<Label>Wymagania/kryteria dołączenia</Label>
+						<div className="flex flex-wrap gap-2">
+							{["none", "age", "gender", "location", "other"].map(
+								(req) => (
+									<Button
+										key={req}
+										type="button"
+										variant={
+											req in requirements
+												? "default"
+												: "outline"
+										}
+										onClick={() =>
+											handleRequirementChange(req)
+										}
+										disabled={
+											req === "none"
+												? false
+												: "none" in requirements
+										}
+									>
+										{req === "none"
+											? "Brak"
+											: req === "age"
+											? "Wiek"
+											: req === "gender"
+											? "Płeć"
+											: req === "location"
+											? "Lokalizacja"
+											: "Inne"}
+									</Button>
+								)
 							)}
 						</div>
+						{"age" in requirements && (
+							<div className="flex flex-col space-y-2">
+								<div className="flex space-x-2">
+									<Input
+										placeholder="Min wiek"
+										type="number"
+										min="1"
+										value={
+											requirements.age?.split("-")[0] ||
+											""
+										}
+										onChange={(e) => {
+											const minAge = e.target.value;
+											const maxAge =
+												requirements.age?.split(
+													"-"
+												)[1] || "";
+											if (
+												maxAge &&
+												parseInt(minAge) >
+													parseInt(maxAge)
+											) {
+												setAgeError(
+													"Minimalny wiek nie  może być większy od maksymalnego"
+												);
+											} else {
+												setAgeError("");
+											}
+											handleRequirementValueChange(
+												"age",
+												`${minAge}-${maxAge}`
+											);
+										}}
+										required
+									/>
+									<Input
+										placeholder="Max wiek"
+										type="number"
+										min="1"
+										value={
+											requirements.age?.split("-")[1] ||
+											""
+										}
+										onChange={(e) => {
+											const maxAge = e.target.value;
+											const minAge =
+												requirements.age?.split(
+													"-"
+												)[0] || "";
+											if (
+												parseInt(maxAge) <
+												parseInt(minAge)
+											) {
+												setAgeError(
+													"Minimalny wiek nie może być większy od maksymalnego"
+												);
+											} else {
+												setAgeError("");
+											}
+											handleRequirementValueChange(
+												"age",
+												`${minAge}-${maxAge}`
+											);
+										}}
+										required
+									/>
+								</div>
+								{ageError && (
+									<p className="text-red-500 text-sm">
+										{ageError}
+									</p>
+								)}
+							</div>
+						)}
+						{"gender" in requirements && (
+							<Select
+								value={requirements.gender}
+								onValueChange={(value) =>
+									handleRequirementValueChange(
+										"gender",
+										value
+									)
+								}
+								required
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="Wybierz płeć" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="Kobieta">
+										Kobieta
+									</SelectItem>
+									<SelectItem value="Mężczyzna">
+										Mężczyzna
+									</SelectItem>
+									<SelectItem value="Niestandardowa">
+										Niestandardowa
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						)}
+						{"location" in requirements && (
+							<Input
+								placeholder="Wymagana lokalizacja"
+								value={requirements.location}
+								onChange={(e) =>
+									handleRequirementValueChange(
+										"location",
+										e.target.value
+									)
+								}
+								required
+							/>
+						)}
+						{"other" in requirements && (
+							<Input
+								placeholder="Inne wymagania"
+								value={requirements.other}
+								onChange={(e) =>
+									handleRequirementValueChange(
+										"other",
+										e.target.value
+									)
+								}
+								required
+							/>
+						)}
+					</div>
+					{locationError && (
+						<div className="text-red-500 text-sm mt-2">
+							{locationError}
+						</div>
 					)}
-					{"gender" in requirements && (
-						<Select
-							value={requirements.gender}
-							onValueChange={(value) =>
-								handleRequirementValueChange("gender", value)
-							}
-							required
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="Wybierz płeć" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="Kobieta">Kobieta</SelectItem>
-								<SelectItem value="Mężczyzna">
-									Mężczyzna
-								</SelectItem>
-								<SelectItem value="Niestandardowa">
-									Niestandardowa
-								</SelectItem>
-							</SelectContent>
-						</Select>
-					)}
-					{"location" in requirements && (
-						<Input
-							placeholder="Wymagana lokalizacja"
-							value={requirements.location}
-							onChange={(e) =>
-								handleRequirementValueChange(
-									"location",
-									e.target.value
-								)
-							}
-							required
-						/>
-					)}
-					{"other" in requirements && (
-						<Input
-							placeholder="Inne wymagania"
-							value={requirements.other}
-							onChange={(e) =>
-								handleRequirementValueChange(
-									"other",
-									e.target.value
-								)
-							}
-							required
-						/>
-					)}
+					<Button type="submit" className="w-full mt-6">
+						Utwórz wydarzenie
+					</Button>
 				</div>
-
-				<Button type="submit" className="w-full mt-6">
-					Utwórz wydarzenie
-				</Button>
-			</div>
-
+			</form>
+			{showOverlay && (
+				<motion.div
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					exit={{ opacity: 0 }}
+					className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50"
+				>
+					<motion.div
+						initial={{ scale: 0.5, opacity: 0 }}
+						animate={{ scale: 1, opacity: 1 }}
+						exit={{ scale: 0.5, opacity: 0 }}
+						transition={{ duration: 0.5 }}
+						className="w-80 h-64 mb-2"
+					>
+						<Lottie
+							animationData={animationData}
+							loop={false}
+							autoplay={true}
+						/>
+					</motion.div>
+					<motion.h2
+						initial={{ y: 20, opacity: 0 }}
+						animate={{ y: 0, opacity: 1 }}
+						exit={{ y: 20, opacity: 0 }}
+						className="text-2xl font-bold text-gray-800 mb-8"
+					>
+						Wydarzenie zostało utworzone!
+					</motion.h2>
+					<motion.div
+						initial={{ y: 20, opacity: 0 }}
+						animate={{ y: 0, opacity: 1 }}
+						exit={{ y: 20, opacity: 0 }}
+						className="absolute bottom-8 left-0 right-0 flex justify-center"
+					>
+						<Button
+							onClick={handleViewMyEvents}
+							className="rounded-full px-12 py-6 text-lg"
+						>
+							Zobacz moje wydarzenia
+						</Button>
+					</motion.div>
+				</motion.div>
+			)}
 			<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
@@ -696,6 +773,6 @@ export default function CreateEvent({ onEventCreated }) {
 					<Button onClick={handleCropConfirm}>Zatwierdź</Button>
 				</DialogContent>
 			</Dialog>
-		</form>
+		</>
 	);
 }
