@@ -176,24 +176,6 @@ export default function UserCreator() {
 		}
 	}, [activeTab]);
 
-	useEffect(() => {
-		let timeout;
-		if (activeTab === "organization" && formData.street && formData.city) {
-			timeout = setTimeout(() => {
-				fetchCoordinates();
-			}, 500);
-		}
-		return () => clearTimeout(timeout);
-	}, [formData.street, formData.city]);
-
-	const fetchCoordinates = async () => {
-		const address = `${formData.street}, ${formData.city}`;
-		const coords = await getCoordinates([address]);
-		if (coords && coords[address]) {
-			setCoordinates(coords[address]);
-		}
-	};
-
 	const fetchUserLocation = async () => {
 		const location = await getUserLocation();
 		if (location) {
@@ -204,6 +186,14 @@ export default function UserCreator() {
 				city: location.city,
 			}));
 		}
+	};
+
+	const fetchCoordinates = async (address) => {
+		const coords = await getCoordinates([address]);
+		if (coords && coords[address]) {
+			return coords[address];
+		}
+		return null;
 	};
 
 	const uploadImage = async (imageDataUrl) => {
@@ -291,13 +281,6 @@ export default function UserCreator() {
 			...prevData,
 			[name]: value,
 		}));
-
-		if (
-			activeTab === "organization" &&
-			(name === "street" || name === "city")
-		) {
-			setCoordinates(null);
-		}
 	};
 
 	const handleSubmit = async (e) => {
@@ -341,12 +324,17 @@ export default function UserCreator() {
 
 		setError("");
 
-		if (activeTab === "organization" && !coordinates) {
-			setError(
-				"Nie udało się ustalić lokalizacji. Sprawdź wpisany adres i spróbuj ponownie"
-			);
-			setIsSubmitting(false);
-			return;
+		let coords = null;
+		if (activeTab === "organization") {
+			const address = `${formData.street}, ${formData.city}`;
+			coords = await fetchCoordinates(address);
+			if (!coords) {
+				setError(
+					"Nie udało się ustalić lokalizacji. Sprawdź wpisany adres i spróbuj ponownie"
+				);
+				setIsSubmitting(false);
+				return;
+			}
 		}
 
 		const preferences = {
@@ -375,8 +363,8 @@ export default function UserCreator() {
 		} else if (activeTab === "organization") {
 			userData = {
 				...userData,
-				lat: coordinates?.lat,
-				lng: coordinates?.lng,
+				lat: coords.lat,
+				lng: coords.lng,
 			};
 		}
 
@@ -686,10 +674,7 @@ export default function UserCreator() {
 					<Button
 						type="submit"
 						className="w-full mt-6"
-						disabled={
-							isSubmitting ||
-							(activeTab === "organization" && !coordinates)
-						}
+						disabled={isSubmitting}
 					>
 						{isSubmitting ? (
 							<>
