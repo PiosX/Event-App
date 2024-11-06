@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { CreditCard, List, Settings } from "lucide-react";
 
 import { CardView } from "./CardView";
@@ -27,6 +27,9 @@ import {
 	calculateDistance,
 	getCoordinates,
 } from "@/lib/event-functions";
+import Lottie from "lottie-react";
+import animationNotFound from "../assets/animation-notFound.json";
+import animationCreatedEvent from "../assets/animation-createdEvent.json";
 
 export default function EventCard() {
 	const [eventView, setEventView] = useState("card");
@@ -38,10 +41,11 @@ export default function EventCard() {
 	const [myEvents, setMyEvents] = useState([]);
 	const [likedEvents, setLikedEvents] = useState([]);
 	const [bannedEvents, setBannedEvents] = useState([]);
-	const [showCongratulations, setShowCongratulations] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState(null);
 	const [userData, setUserData] = useState(null);
+	const [showNotification, setShowNotification] = useState(false);
+	const [notificationEventName, setNotificationEventName] = useState("");
 
 	const fetchUserData = useCallback(async () => {
 		const user = auth.currentUser;
@@ -142,6 +146,19 @@ export default function EventCard() {
 				if (!eventMeetsUserPreferences(eventData, userData.preferences))
 					continue; // Skip if event doesn't meet user preferences
 
+				if (userData.preferences.searchByDate) {
+					const eventDate = new Date(eventData.date);
+					const startDate = userData.preferences.startDate
+						? new Date(userData.preferences.startDate)
+						: null;
+					const endDate = userData.preferences.endDate
+						? new Date(userData.preferences.endDate)
+						: null;
+
+					if (startDate && eventDate < startDate) continue;
+					if (endDate && eventDate > endDate) continue;
+				}
+
 				const creatorName = await fetchCreatorName(eventData.creator);
 				const participantImages = await fetchParticipantImages(
 					eventData.participants
@@ -235,9 +252,12 @@ export default function EventCard() {
 
 			await updateChatParticipants(eventId, user.uid);
 
-			setShowCongratulations(true);
-			setSelectedEventId(null);
-			await fetchEvents();
+			setNotificationEventName(eventData.eventName);
+			setShowNotification(true);
+			setTimeout(() => {
+				setShowNotification(false);
+				nextEvent();
+			}, 2000);
 		} catch (err) {
 			console.error("Error joining event:", err);
 		}
@@ -294,10 +314,6 @@ export default function EventCard() {
 		setSelectedEventId(null);
 	};
 
-	const handleCloseCongratulations = () => {
-		setShowCongratulations(false);
-	};
-
 	if (isLoading) {
 		return (
 			<div className="h-full flex items-center justify-center bg-gray-100">
@@ -316,6 +332,40 @@ export default function EventCard() {
 
 	return (
 		<div className="h-full bg-gray-100 flex flex-col">
+			<AnimatePresence>
+				{showNotification && (
+					<motion.div
+						initial={{ y: -100, opacity: 0 }}
+						animate={{ y: 0, opacity: 1 }}
+						exit={{ y: -100, opacity: 0 }}
+						transition={{
+							type: "spring",
+							stiffness: 100,
+							damping: 10,
+						}}
+						className="fixed top-0 left-0 right-0 z-50 w-full"
+					>
+						<div className="bg-white shadow-lg rounded-lg p-4 m-4 flex items-center space-x-4">
+							<div className="w-16 h-16">
+								<Lottie
+									animationData={animationCreatedEvent}
+									loop={true}
+									autoplay={true}
+								/>
+							</div>
+							<div>
+								<h3 className="text-lg font-bold">
+									Gratulacje!
+								</h3>
+								<p className="text-sm">
+									Dołączyłeś do: {notificationEventName}
+								</p>
+							</div>
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+
 			<div className="bg-white shadow z-10">
 				<div className="container mx-auto px-4 py-2 flex items-center justify-between h-14">
 					<div className="flex-1"></div>
@@ -384,7 +434,13 @@ export default function EventCard() {
 								/>
 							</motion.div>
 						) : (
-							<div className="h-full flex items-center justify-center">
+							<div className="h-full flex flex-col items-center justify-center">
+								<Lottie
+									animationData={animationNotFound}
+									loop={true}
+									autoplay={true}
+									style={{ width: 200, height: 200 }}
+								/>
 								<p className="text-xl text-gray-600 text-center px-4">
 									Niestety nie mamy dla Ciebie żadnych
 									wydarzeń :(
@@ -443,22 +499,6 @@ export default function EventCard() {
 						}));
 					}}
 				/>
-			)}
-			{showCongratulations && (
-				<div
-					className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-					onClick={handleCloseCongratulations}
-				>
-					<div
-						className="bg-white p-8 rounded-lg shadow-xl text-center"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<h2 className="text-2xl font-bold mb-4 text-green-500">
-							Gratulacje!
-						</h2>
-						<p className="text-lg">Dołączyłeś do wydarzenia.</p>
-					</div>
-				</div>
 			)}
 		</div>
 	);

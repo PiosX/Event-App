@@ -2,6 +2,8 @@ import { Calendar, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
+import Lottie from "lottie-react";
+import animationNotFound from "../assets/animation-notFound.json";
 
 export function ListView({ events, onSelectEvent }) {
 	const mapping = {
@@ -12,7 +14,13 @@ export function ListView({ events, onSelectEvent }) {
 	};
 	if (events.length === 0) {
 		return (
-			<div className="h-full flex items-center justify-center bg-gray-100">
+			<div className="h-full flex flex-col items-center justify-center">
+				<Lottie
+					animationData={animationNotFound}
+					loop={true}
+					autoplay={true}
+					style={{ width: 200, height: 200 }}
+				/>
 				<p className="text-xl text-gray-600 text-center px-4">
 					Niestety nie mamy dla Ciebie żadnych wydarzeń :(
 				</p>

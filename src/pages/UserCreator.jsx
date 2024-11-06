@@ -30,6 +30,7 @@ import { processImage } from "@/lib/process-image";
 import { getUserLocation, getCoordinates } from "@/lib/event-functions";
 import Lottie from "lottie-react";
 import animationData from "../assets/animation-userCreation.json";
+import locationAnimationData from "../assets/animation-location.json";
 import { motion, AnimatePresence } from "framer-motion";
 
 const interests = [
@@ -156,6 +157,10 @@ export default function UserCreator() {
 	const [activeTab, setActiveTab] = useState("person");
 	const [userLocation, setUserLocation] = useState(null);
 	const [coordinates, setCoordinates] = useState(null);
+	const [locationError, setLocationError] = useState("");
+	const [showLocationPopup, setShowLocationPopup] = useState(true);
+	const [locationPermissionGranted, setLocationPermissionGranted] =
+		useState(false);
 	const [formData, setFormData] = useState({
 		name: name || "",
 		age: "",
@@ -171,10 +176,56 @@ export default function UserCreator() {
 	const user = auth.currentUser ? auth.currentUser.uid : null;
 
 	useEffect(() => {
-		if (activeTab === "person") {
+		checkLocationPermission();
+	}, []);
+
+	const checkLocationPermission = () => {
+		//zastepczna funkcja
+		if ("geolocation" in navigator) {
+			navigator.permissions
+				.query({ name: "geolocation" })
+				.then((result) => {
+					if (result.state === "granted") {
+						setLocationPermissionGranted(true);
+						setShowLocationPopup(false);
+					} else {
+						setLocationPermissionGranted(false);
+						setShowLocationPopup(true);
+					}
+				});
+		} else {
+			setLocationError("Błąd lokalizacji.");
+			setShowLocationPopup(true);
+		}
+	};
+
+	useEffect(() => {
+		if (activeTab === "person" && locationPermissionGranted) {
 			fetchUserLocation();
 		}
-	}, [activeTab]);
+	}, [activeTab, locationPermissionGranted]);
+
+	const handleEnableLocation = async () => {
+		try {
+			const position = await new Promise((resolve, reject) => {
+				navigator.geolocation.getCurrentPosition(resolve, reject);
+			});
+			setLocationPermissionGranted(true);
+			setShowLocationPopup(false);
+			fetchUserLocation();
+		} catch (error) {
+			console.error("Error getting location:", error);
+			if (error.code === 1) {
+				setLocationError(
+					"Odmówiono dostępu do lokalizacji. Aby korzystać z funkcji lokalizacji, zmień ustawienia przeglądarki i spróbuj ponownie."
+				);
+			} else {
+				setLocationError(
+					"Wystąpił błąd podczas uzyskiwania dostępu do lokalizacji. Spróbuj ponownie później."
+				);
+			}
+		}
+	};
 
 	const fetchUserLocation = async () => {
 		const location = await getUserLocation();
@@ -344,6 +395,7 @@ export default function UserCreator() {
 			usePersonLimit: false,
 			personLimit: null,
 			distance: 10,
+			locationEnabled: locationPermissionGranted,
 		};
 
 		let userData = {
@@ -770,6 +822,49 @@ export default function UserCreator() {
 								Zobacz profil
 							</Button>
 						</motion.div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{showLocationPopup && (
+					<motion.div
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+						className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-between p-6"
+					>
+						<div className="flex-1 flex flex-col items-center justify-center w-full max-w-md">
+							<div className="w-48 h-48 mb-4">
+								<Lottie
+									animationData={locationAnimationData}
+									loop={true}
+									autoplay={true}
+								/>
+							</div>
+							<h2 className="text-2xl font-bold mb-4 text-center">
+								Gdzie jesteś?
+							</h2>
+							<p className="text-center mb-8">
+								Aby w pełni wykorzystać możliwości aplikacji,
+								potrzebujemy dostępu do Twojej lokalizacji.
+								Dzięki temu możemy precyzyjnie dopasowywać
+								wydarzenia w Twojej okolicy, zapewniając Ci jak
+								najlepsze doświadczenie. Po rejestracji możesz
+								wyłączyć udostępnianie lokalizacji, jednak
+								wówczas nie będziemy mogli jej aktualizować.
+							</p>
+							{locationError && (
+								<p className="text-red-500 text-center mb-4">
+									{locationError}
+								</p>
+							)}
+						</div>
+						<Button
+							onClick={handleEnableLocation}
+							className="rounded-full px-12 py-6 text-lg"
+						>
+							Włącz lokalizację
+						</Button>
 					</motion.div>
 				)}
 			</AnimatePresence>

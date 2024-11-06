@@ -135,6 +135,9 @@ export function PreferencesPanel({
 	const [location, setLocation] = useState("");
 	const [meetRequirements, setMeetRequirements] = useState(true);
 	const [distance, setDistance] = useState(10);
+	const [searchByDate, setSearchByDate] = useState(false);
+	const [startDate, setStartDate] = useState("");
+	const [endDate, setEndDate] = useState("");
 	const searchInputRef = useRef(null);
 
 	useEffect(() => {
@@ -159,6 +162,9 @@ export function PreferencesPanel({
 					setPersonLimit(preferences.personLimit || 50);
 					setMeetRequirements(preferences.meetRequirements !== false);
 					setDistance(preferences.distance || 10);
+					setSearchByDate(preferences.searchByDate || false);
+					setStartDate(preferences.startDate || "");
+					setEndDate(preferences.endDate || "");
 				} else {
 					console.log("No user document found");
 				}
@@ -206,6 +212,9 @@ export function PreferencesPanel({
 			personLimit,
 			meetRequirements,
 			distance,
+			searchByDate,
+			startDate,
+			endDate,
 		};
 
 		setUserPreferences(newPreferences);
@@ -344,6 +353,42 @@ export function PreferencesPanel({
 								}
 								className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[role=slider]]:rounded-sm [&_[role=slider]]:bg-black"
 							/>
+						</div>
+					)}
+					<div className="flex items-center space-x-2">
+						<Checkbox
+							id="searchByDate"
+							checked={searchByDate}
+							onCheckedChange={setSearchByDate}
+						/>
+						<Label htmlFor="searchByDate">Szukaj według daty</Label>
+					</div>
+
+					{searchByDate && (
+						<div className="flex space-x-2">
+							<div className="flex-1">
+								<Label htmlFor="startDate">
+									Data początkowa
+								</Label>
+								<Input
+									id="startDate"
+									type="date"
+									value={startDate}
+									onChange={(e) =>
+										setStartDate(e.target.value)
+									}
+									min={new Date().toISOString().split("T")[0]}
+								/>
+							</div>
+							<div className="flex-1">
+								<Label htmlFor="endDate">Data końcowa</Label>
+								<Input
+									id="endDate"
+									type="date"
+									value={endDate}
+									onChange={(e) => setEndDate(e.target.value)}
+								/>
+							</div>
 						</div>
 					)}
 					<div className="flex items-center space-x-2">

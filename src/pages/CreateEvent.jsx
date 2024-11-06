@@ -38,7 +38,7 @@ import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { processImage } from "@/lib/process-image";
 import { getCoordinates } from "@/lib/event-functions";
-import animationData from "../assets/animation-createrEvent.json";
+import animationData from "../assets/animation-createdEvent.json";
 import Lottie from "lottie-react";
 import { motion } from "framer-motion";
 
