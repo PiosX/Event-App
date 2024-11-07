@@ -27,7 +27,7 @@ export function CardView({
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
 	const [showLikeAnimation, setShowLikeAnimation] = useState(false);
-
+	console.log("jestem dalej w cardview...");
 	if (!event) {
 		return (
 			<div className="h-full flex items-center justify-center bg-gray-100">

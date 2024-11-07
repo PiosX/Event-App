@@ -60,13 +60,7 @@ export default function Chat() {
 						const eventDoc = await getDoc(
 							doc(db, "events", eventId)
 						);
-						const chatDoc = await getDoc(doc(db, "chats", eventId));
-						const lastMessage = chatDoc.exists()
-							? chatDoc.data().messages[
-									chatDoc.data().messages.length - 1
-							  ]
-							: null;
-						return { id: eventId, ...eventDoc.data(), lastMessage };
+						return { id: eventId, ...eventDoc.data() };
 					})
 				);
 				allEvents = [...joinedEventsData];
@@ -77,17 +71,10 @@ export default function Chat() {
 				where("creator", "==", auth.currentUser.uid)
 			);
 			const createdEventsSnapshot = await getDocs(createdEventsQuery);
-			const createdEventsData = await Promise.all(
-				createdEventsSnapshot.docs.map(async (eventDoc) => {
-					const chatDoc = await getDoc(doc(db, "chats", eventDoc.id));
-					const lastMessage = chatDoc.exists()
-						? chatDoc.data().messages[
-								chatDoc.data().messages.length - 1
-						  ]
-						: null;
-					return { id: eventDoc.id, ...eventDoc.data(), lastMessage };
-				})
-			);
+			const createdEventsData = createdEventsSnapshot.docs.map((doc) => ({
+				id: doc.id,
+				...doc.data(),
+			}));
 
 			allEvents = [...allEvents, ...createdEventsData];
 
@@ -97,6 +84,25 @@ export default function Chat() {
 
 			setAllConversations(uniqueEvents);
 			setFilteredConversations(uniqueEvents);
+
+			// Set up real-time listeners for each chat
+			uniqueEvents.forEach((event) => {
+				const chatRef = doc(db, "chats", event.id);
+				onSnapshot(chatRef, (docSnapshot) => {
+					if (docSnapshot.exists()) {
+						const chatData = docSnapshot.data();
+						const lastMessage =
+							chatData.messages[chatData.messages.length - 1];
+						setAllConversations((prevConversations) =>
+							prevConversations.map((conv) =>
+								conv.id === event.id
+									? { ...conv, lastMessage }
+									: conv
+							)
+						);
+					}
+				});
+			});
 		};
 
 		fetchAllEvents();
@@ -136,19 +142,18 @@ export default function Chat() {
 					if (docSnapshot.exists()) {
 						const chatData = docSnapshot.data();
 						setMessages(chatData.messages || []);
-						const participants = chatData.participants || {};
+						const participants = chatData.participants || [];
 						const newUserNames = {};
 						const newProfileImages = {};
 
-						for (const participant of participants) {
-							// Zakładam, że participant to obiekt zawierający id, name, i profileImage
+						participants.forEach((participant) => {
 							newUserNames[participant.id] = participant.name;
 							newProfileImages[participant.id] =
 								participant.profileImage;
-						}
+						});
 
 						setUserNames(newUserNames);
-						setProfileImages(newProfileImages); // Dodaj tę linię, jeśli będziesz potrzebował profileImages
+						setProfileImages(newProfileImages);
 					}
 				}
 			);
@@ -424,6 +429,7 @@ export default function Chat() {
 
 function ConversationItem({ conversation, onClick, isEven, currentUserId }) {
 	const [senderName, setSenderName] = useState("");
+
 	useEffect(() => {
 		const fetchSenderName = async () => {
 			if (
@@ -456,11 +462,12 @@ function ConversationItem({ conversation, onClick, isEven, currentUserId }) {
 			conversation.lastMessage.senderId === currentUserId
 				? "Ja"
 				: senderName;
-		let content = conversation.lastMessage.content;
+		let content =
+			conversation.lastMessage.type === "image"
+				? "Obrazek"
+				: conversation.lastMessage.content;
 
-		if (conversation.lastMessage.type === "image") {
-			content = "Obrazek";
-		} else if (content.length > 20) {
+		if (content.length > 20) {
 			content = content.substring(0, 20) + "...";
 		}
 

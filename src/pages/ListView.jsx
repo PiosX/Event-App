@@ -12,6 +12,7 @@ export function ListView({ events, onSelectEvent }) {
 		location: "Lokalizacja",
 		other: "Inne",
 	};
+	console.log("jestem w listview...");
 	if (events.length === 0) {
 		return (
 			<div className="h-full flex flex-col items-center justify-center">

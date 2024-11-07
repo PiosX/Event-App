@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { CreditCard, List, Settings } from "lucide-react";
-
+import React, { useState, useEffect, useCallback } from "react";
+import { CreditCard, List, Settings, FrownIcon } from "lucide-react";
 import { CardView } from "./CardView";
 import { ListView } from "./ListView";
 import { PreferencesPanel } from "./PreferencesPanel";
@@ -46,6 +45,7 @@ export default function EventCard() {
 	const [userData, setUserData] = useState(null);
 	const [showNotification, setShowNotification] = useState(false);
 	const [notificationEventName, setNotificationEventName] = useState("");
+	const [notificationType, setNotificationType] = useState("success");
 
 	const fetchUserData = useCallback(async () => {
 		const user = auth.currentUser;
@@ -101,12 +101,12 @@ export default function EventCard() {
 						(eventData.capacity !== -1 &&
 							eventData.participants.length >= eventData.capacity)
 					) {
-						return null; // Skip this event
+						return null;
 					}
 
-					return { id: doc.id, ...eventData }; // Store event data
+					return { id: doc.id, ...eventData };
 				})
-				.filter(Boolean); // Filter out skipped events
+				.filter(Boolean);
 
 			let userLat, userLng;
 
@@ -132,7 +132,7 @@ export default function EventCard() {
 			const radius = userData.preferences.distance || 10;
 
 			for (const eventData of events) {
-				if (!eventData.lat || !eventData.lng) continue; // Skip if event doesn't have coordinates
+				if (!eventData.lat || !eventData.lng) continue;
 
 				const distance = calculateDistance(
 					userLat,
@@ -141,10 +141,10 @@ export default function EventCard() {
 					eventData.lng
 				);
 
-				if (distance === null || distance > radius) continue; // Skip if no distance or out of radius
+				if (distance === null || distance > radius) continue;
 
 				if (!eventMeetsUserPreferences(eventData, userData.preferences))
-					continue; // Skip if event doesn't meet user preferences
+					continue;
 
 				if (userData.preferences.searchByDate) {
 					const eventDate = new Date(eventData.date);
@@ -224,7 +224,6 @@ export default function EventCard() {
 				[field]: [eventId],
 			});
 		}
-		await fetchEvents();
 	};
 
 	const handleJoinEvent = async (eventId) => {
@@ -240,8 +239,11 @@ export default function EventCard() {
 				eventData.capacity !== -1 &&
 				eventData.participants.length >= eventData.capacity
 			) {
-				alert("Przepraszamy, to wydarzenie jest już pełne.");
-				await fetchEvents();
+				setNotificationEventName(eventData.eventName);
+				setNotificationType("error");
+				setShowNotification(true);
+				removeEventFromList(eventId);
+				setTimeout(() => setShowNotification(false), 2000);
 				return;
 			}
 
@@ -253,11 +255,12 @@ export default function EventCard() {
 			await updateChatParticipants(eventId, user.uid);
 
 			setNotificationEventName(eventData.eventName);
+			setNotificationType("success");
 			setShowNotification(true);
-			setTimeout(() => {
-				setShowNotification(false);
-				nextEvent();
-			}, 2000);
+			removeEventFromList(eventId);
+			setTimeout(() => setShowNotification(false), 2000);
+			setEventView("list");
+			setSelectedEventId(null);
 		} catch (err) {
 			console.error("Error joining event:", err);
 		}
@@ -265,11 +268,9 @@ export default function EventCard() {
 
 	const handleLikeEvent = async (eventId) => {
 		await updateUserEvents(eventId, "liked");
-		if (eventView === "card") {
-			nextEvent();
-		} else {
-			closeCardView();
-		}
+		removeEventFromList(eventId);
+		setEventView("list");
+		setSelectedEventId(null);
 	};
 
 	const handleDislikeEvent = async (eventId) => {
@@ -280,18 +281,33 @@ export default function EventCard() {
 		await updateDoc(doc(db, "chats", eventId), {
 			participants: arrayRemove(auth.currentUser.uid),
 		});
-		if (eventView === "card") {
-			nextEvent();
-		} else {
-			closeCardView();
-		}
+		removeEventFromList(eventId);
+		setEventView("list");
+		setSelectedEventId(null);
 	};
 
-	const nextEvent = () => {
+	const removeEventFromList = useCallback(
+		(eventId) => {
+			setEvents((prevEvents) => {
+				const updatedEvents = prevEvents.filter(
+					(event) => event.id !== eventId
+				);
+				if (updatedEvents.length === 0) {
+					setCurrentEventIndex(0);
+				} else if (currentEventIndex >= updatedEvents.length) {
+					setCurrentEventIndex(updatedEvents.length - 1);
+				}
+				return updatedEvents;
+			});
+		},
+		[currentEventIndex]
+	);
+
+	const nextEvent = useCallback(() => {
 		if (events.length === 0) return;
 		setDirection(1);
 		setCurrentEventIndex((prevIndex) => (prevIndex + 1) % events.length);
-	};
+	}, [events.length]);
 
 	const handleSwipe = (swipeDirection) => {
 		if (swipeDirection > 0) {
@@ -307,6 +323,7 @@ export default function EventCard() {
 
 	const closeCardView = () => {
 		setSelectedEventId(null);
+		setEventView("list");
 	};
 
 	const handleEventViewChange = (newView) => {
@@ -346,19 +363,27 @@ export default function EventCard() {
 						className="fixed top-0 left-0 right-0 z-50 w-full"
 					>
 						<div className="bg-white shadow-lg rounded-lg p-4 m-4 flex items-center space-x-4">
-							<div className="w-16 h-16">
-								<Lottie
-									animationData={animationCreatedEvent}
-									loop={true}
-									autoplay={true}
-								/>
+							<div className="w-16 h-16 flex items-center justify-center">
+								{notificationType === "success" ? (
+									<Lottie
+										animationData={animationCreatedEvent}
+										loop={true}
+										autoplay={true}
+									/>
+								) : (
+									<FrownIcon className="w-12 h-12 text-red-500" />
+								)}
 							</div>
 							<div>
 								<h3 className="text-lg font-bold">
-									Gratulacje!
+									{notificationType === "success"
+										? "Gratulacje!"
+										: "Brak miejsc"}
 								</h3>
 								<p className="text-sm">
-									Dołączyłeś do: {notificationEventName}
+									{notificationType === "success"
+										? `Dołączyłeś do: ${notificationEventName}`
+										: "Przepraszamy, ktoś zajął ostatnie wolne miejsce"}
 								</p>
 							</div>
 						</div>
@@ -449,7 +474,7 @@ export default function EventCard() {
 						)}
 					</AnimatePresence>
 				)}
-				{eventView === "list" && !selectedEventId && (
+				{eventView === "list" && (
 					<div className="h-full">
 						<ListView
 							events={events}
