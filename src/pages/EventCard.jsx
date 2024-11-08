@@ -94,31 +94,23 @@ export default function EventCard() {
 			const q = query(
 				eventsRef,
 				where("date", ">=", now.toISOString()),
-				orderBy("date"),
-				limit(20)
+				orderBy("date")
 			);
 			const querySnapshot = await getDocs(q);
 
-			const fetchedEvents = [];
-			const events = querySnapshot.docs
-				.map((doc) => {
-					const eventData = doc.data();
-					if (
-						eventData.creator === user.uid ||
-						[
+			const allEvents = querySnapshot.docs
+				.map((doc) => ({ id: doc.id, ...doc.data() }))
+				.filter(
+					(eventData) =>
+						eventData.creator !== user.uid &&
+						![
 							...joinedEvents,
 							...likedEvents,
 							...bannedEvents,
-						].includes(doc.id) ||
-						(eventData.capacity !== -1 &&
-							eventData.participants.length >= eventData.capacity)
-					) {
-						return null;
-					}
-
-					return { id: doc.id, ...eventData };
-				})
-				.filter(Boolean);
+						].includes(eventData.id) &&
+						(eventData.capacity === -1 ||
+							eventData.participants.length < eventData.capacity)
+				);
 
 			let userLat, userLng;
 
@@ -143,7 +135,9 @@ export default function EventCard() {
 
 			const radius = userData.preferences.distance || 10;
 
-			for (const eventData of events) {
+			const filteredEvents = [];
+
+			for (const eventData of allEvents) {
 				if (!eventData.lat || !eventData.lng) continue;
 
 				const distance = calculateDistance(
@@ -178,16 +172,18 @@ export default function EventCard() {
 
 				const timeLeft = calculateTimeLeft(eventData.date);
 
-				fetchedEvents.push({
+				filteredEvents.push({
 					...eventData,
 					creatorName,
 					distance,
 					participantImages: participantImages.filter(Boolean),
 					timeLeft,
 				});
+
+				if (filteredEvents.length >= 20) break;
 			}
 
-			setEvents(fetchedEvents);
+			setEvents(filteredEvents);
 		} catch (err) {
 			console.error("Error fetching events:", err);
 			setError(
@@ -285,7 +281,7 @@ export default function EventCard() {
 			setNotificationEventName(eventData.eventName);
 			setNotificationType("success");
 			setShowNotification(true);
-			removeEventFromList(eventId);
+			removeEventWithAnimation(eventId, "join");
 			setTimeout(() => setShowNotification(false), 2000);
 			if (eventView === "list") {
 				setEventView("list");
@@ -298,7 +294,7 @@ export default function EventCard() {
 
 	const handleLikeEvent = async (eventId) => {
 		await updateUserEvents(eventId, "liked");
-		removeEventFromList(eventId);
+		removeEventWithAnimation(eventId, "like");
 		if (eventView === "list") {
 			setEventView("list");
 			setSelectedEventId(null);
@@ -313,11 +309,26 @@ export default function EventCard() {
 		await updateDoc(doc(db, "chats", eventId), {
 			participants: arrayRemove(auth.currentUser.uid),
 		});
-		removeEventFromList(eventId);
+		removeEventWithAnimation(eventId, "dislike");
 		if (eventView === "list") {
 			setEventView("list");
 			setSelectedEventId(null);
 		}
+	};
+
+	const removeEventWithAnimation = (eventId, action) => {
+		setEvents((prevEvents) => {
+			const updatedEvents = prevEvents.map((event) =>
+				event.id === eventId
+					? { ...event, removing: true, action }
+					: event
+			);
+			return updatedEvents;
+		});
+
+		setTimeout(() => {
+			removeEventFromList(eventId);
+		}, 300);
 	};
 
 	const removeEventFromList = useCallback(
@@ -492,6 +503,12 @@ export default function EventCard() {
 									onDislike={handleDislikeEvent}
 									getTimeLeftColor={getTimeLeftColor}
 									formatTimeLeft={formatTimeLeft}
+									isRemoving={
+										events[currentEventIndex].removing
+									}
+									removeAction={
+										events[currentEventIndex].action
+									}
 								/>
 							</motion.div>
 						) : (

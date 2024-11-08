@@ -26,10 +26,43 @@ export function CardView({
 	onDislike,
 	getTimeLeftColor,
 	formatTimeLeft,
+	isRemoving,
+	removeAction,
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
 	const [showLikeAnimation, setShowLikeAnimation] = useState(false);
+	const cardVariants = {
+		initial: { opacity: 1, scale: 1 },
+		removing: (action) => {
+			switch (action) {
+				case "join":
+					return {
+						opacity: 0,
+						x: 300,
+						transition: { duration: 0.3 },
+					};
+				case "like":
+					return {
+						opacity: 0,
+						x: 300,
+						transition: { duration: 0.3 },
+					};
+				case "dislike":
+					return {
+						opacity: 0,
+						x: -300,
+						transition: { duration: 0.3 },
+					};
+				default:
+					return {
+						opacity: 0,
+						scale: 0.8,
+						transition: { duration: 0.3 },
+					};
+			}
+		},
+	};
 
 	if (!event) {
 		return (
@@ -94,8 +127,10 @@ export function CardView({
 		<div className="h-full p-4 bg-gray-100 flex flex-col">
 			<motion.div
 				className="flex-grow flex flex-col bg-white rounded-lg shadow-lg overflow-hidden"
-				initial={{ opacity: 0, scale: 0.8 }}
-				animate={{ opacity: 1, scale: 1 }}
+				initial={"initial"}
+				animate={isRemoving ? "removing" : "initial"}
+				custom={removeAction}
+				variants={cardVariants}
 				transition={{ duration: 0.3 }}
 				onTouchStart={handleTouchStart}
 				onTouchMove={handleTouchMove}
