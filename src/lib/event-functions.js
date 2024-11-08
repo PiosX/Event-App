@@ -235,3 +235,32 @@ export async function updateChatParticipants(eventId, userId) {
 		});
 	}
 }
+
+export const calculateTimeLeft = (eventDate) => {
+	const difference = new Date(eventDate) - new Date();
+	if (difference > 0) {
+		const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+		const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+		const minutes = Math.floor((difference / 1000 / 60) % 60);
+		const seconds = Math.floor((difference / 1000) % 60);
+
+		return { days, hours, minutes, seconds };
+	}
+	return null;
+};
+
+export const getTimeLeftColor = (timeLeft) => {
+	if (!timeLeft) return "bg-red-500";
+	if (timeLeft.days > 2) return "bg-gray-200";
+	if (timeLeft.days > 1) return "bg-yellow-200";
+	return "bg-red-200";
+};
+
+export const formatTimeLeft = (timeLeft) => {
+	if (!timeLeft) return "Wydarzenie się rozpoczęło";
+	if (timeLeft.days > 0)
+		return `${timeLeft.days} ${timeLeft.days === 1 ? "dzień" : "dni"}`;
+	return `${String(timeLeft.hours).padStart(2, "0")}:${String(
+		timeLeft.minutes
+	).padStart(2, "0")}:${String(timeLeft.seconds).padStart(2, "0")}`;
+};

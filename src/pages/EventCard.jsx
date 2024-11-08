@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { CreditCard, List, Settings, FrownIcon } from "lucide-react";
+import { CreditCard, List, Settings, FrownIcon, Clock } from "lucide-react";
 import { CardView } from "./CardView";
 import { ListView } from "./ListView";
 import { PreferencesPanel } from "./PreferencesPanel";
@@ -16,6 +16,8 @@ import {
 	updateDoc,
 	arrayUnion,
 	arrayRemove,
+	orderBy,
+	limit,
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +27,9 @@ import {
 	updateChatParticipants,
 	calculateDistance,
 	getCoordinates,
+	calculateTimeLeft,
+	getTimeLeftColor,
+	formatTimeLeft,
 } from "@/lib/event-functions";
 import Lottie from "lottie-react";
 import animationNotFound from "../assets/animation-notFound.json";
@@ -85,7 +90,14 @@ export default function EventCard() {
 			setBannedEvents(bannedEvents);
 
 			const eventsRef = collection(db, "events");
-			const querySnapshot = await getDocs(query(eventsRef));
+			const now = new Date();
+			const q = query(
+				eventsRef,
+				where("date", ">=", now.toISOString()),
+				orderBy("date"),
+				limit(20)
+			);
+			const querySnapshot = await getDocs(q);
 
 			const fetchedEvents = [];
 			const events = querySnapshot.docs
@@ -164,11 +176,14 @@ export default function EventCard() {
 					eventData.participants
 				);
 
+				const timeLeft = calculateTimeLeft(eventData.date);
+
 				fetchedEvents.push({
 					...eventData,
 					creatorName,
 					distance,
 					participantImages: participantImages.filter(Boolean),
+					timeLeft,
 				});
 			}
 
@@ -207,6 +222,19 @@ export default function EventCard() {
 			fetchEvents();
 		}
 	}, [userData, fetchEvents]);
+
+	useEffect(() => {
+		const timer = setInterval(() => {
+			setEvents((prevEvents) =>
+				prevEvents.map((event) => ({
+					...event,
+					timeLeft: calculateTimeLeft(event.date),
+				}))
+			);
+		}, 1000);
+
+		return () => clearInterval(timer);
+	}, []);
 
 	const updateUserEvents = async (eventId, field) => {
 		const user = auth.currentUser;
@@ -259,8 +287,10 @@ export default function EventCard() {
 			setShowNotification(true);
 			removeEventFromList(eventId);
 			setTimeout(() => setShowNotification(false), 2000);
-			setEventView("list");
-			setSelectedEventId(null);
+			if (eventView === "list") {
+				setEventView("list");
+				setSelectedEventId(null);
+			}
 		} catch (err) {
 			console.error("Error joining event:", err);
 		}
@@ -269,8 +299,10 @@ export default function EventCard() {
 	const handleLikeEvent = async (eventId) => {
 		await updateUserEvents(eventId, "liked");
 		removeEventFromList(eventId);
-		setEventView("list");
-		setSelectedEventId(null);
+		if (eventView === "list") {
+			setEventView("list");
+			setSelectedEventId(null);
+		}
 	};
 
 	const handleDislikeEvent = async (eventId) => {
@@ -282,8 +314,10 @@ export default function EventCard() {
 			participants: arrayRemove(auth.currentUser.uid),
 		});
 		removeEventFromList(eventId);
-		setEventView("list");
-		setSelectedEventId(null);
+		if (eventView === "list") {
+			setEventView("list");
+			setSelectedEventId(null);
+		}
 	};
 
 	const removeEventFromList = useCallback(
@@ -456,6 +490,8 @@ export default function EventCard() {
 									onJoin={handleJoinEvent}
 									onLike={handleLikeEvent}
 									onDislike={handleDislikeEvent}
+									getTimeLeftColor={getTimeLeftColor}
+									formatTimeLeft={formatTimeLeft}
 								/>
 							</motion.div>
 						) : (
@@ -475,12 +511,12 @@ export default function EventCard() {
 					</AnimatePresence>
 				)}
 				{eventView === "list" && (
-					<div className="h-full">
-						<ListView
-							events={events}
-							onSelectEvent={handleSelectEvent}
-						/>
-					</div>
+					<ListView
+						events={events}
+						onSelectEvent={handleSelectEvent}
+						getTimeLeftColor={getTimeLeftColor}
+						formatTimeLeft={formatTimeLeft}
+					/>
 				)}
 				<AnimatePresence>
 					{selectedEventId && (
@@ -507,6 +543,8 @@ export default function EventCard() {
 								onJoin={handleJoinEvent}
 								onLike={handleLikeEvent}
 								onDislike={handleDislikeEvent}
+								getTimeLeftColor={getTimeLeftColor}
+								formatTimeLeft={formatTimeLeft}
 							/>
 						</motion.div>
 					)}

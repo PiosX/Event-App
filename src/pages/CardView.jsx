@@ -7,6 +7,7 @@ import {
 	Map,
 	ChevronRight,
 	ArrowLeft,
+	Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -23,11 +24,13 @@ export function CardView({
 	onJoin,
 	onLike,
 	onDislike,
+	getTimeLeftColor,
+	formatTimeLeft,
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
 	const [showLikeAnimation, setShowLikeAnimation] = useState(false);
-	console.log("jestem dalej w cardview...");
+
 	if (!event) {
 		return (
 			<div className="h-full flex items-center justify-center bg-gray-100">
@@ -116,12 +119,22 @@ export function CardView({
 									</button>
 								</div>
 							)}
-							{event.distance !== null && (
-								<div className="absolute top-4 right-4 bg-gray-200 text-gray-800 px-2 py-2 rounded-md text-base font-medium flex items-center">
-									<MapPin className="w-5 h-5 mr-1" />
-									{event.distance.toFixed(1)} km
+							<div className="absolute top-4 right-4 flex space-x-2">
+								<div
+									className={`${getTimeLeftColor(
+										event.timeLeft
+									)} text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center`}
+								>
+									<Clock className="w-4 h-4 mr-1" />
+									{formatTimeLeft(event.timeLeft)}
 								</div>
-							)}
+								{event.distance !== null && (
+									<div className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
+										<MapPin className="w-4 h-4 mr-1" />
+										{event.distance.toFixed(1)} km
+									</div>
+								)}
+							</div>
 							<div className="absolute bottom-0 left-0 right-0 p-6">
 								<h2 className="text-white text-3xl font-bold mb-2">
 									{event.eventName}

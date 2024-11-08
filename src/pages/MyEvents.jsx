@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { UserPlus, Heart, PlusCircle, Calendar, MapPin } from "lucide-react";
+import {
+	UserPlus,
+	Heart,
+	PlusCircle,
+	Calendar,
+	MapPin,
+	Clock,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { CardView } from "./CardView";
@@ -18,7 +25,12 @@ import {
 	arrayRemove,
 	arrayUnion,
 } from "firebase/firestore";
-import { calculateDistance } from "@/lib/event-functions";
+import {
+	calculateDistance,
+	calculateTimeLeft,
+	getTimeLeftColor,
+	formatTimeLeft,
+} from "@/lib/event-functions";
 
 export function MyEvents() {
 	const [activeTab, setActiveTab] = useState("participating");
@@ -46,6 +58,27 @@ export function MyEvents() {
 			fetchEvents();
 		}
 	}, [activeTab, userData]);
+
+	useEffect(() => {
+		const timer = setInterval(() => {
+			setEvents((prevEvents) => ({
+				participating: prevEvents.participating.map((event) => ({
+					...event,
+					timeLeft: calculateTimeLeft(event.date),
+				})),
+				liked: prevEvents.liked.map((event) => ({
+					...event,
+					timeLeft: calculateTimeLeft(event.date),
+				})),
+				created: prevEvents.created.map((event) => ({
+					...event,
+					timeLeft: calculateTimeLeft(event.date),
+				})),
+			}));
+		}, 1000);
+
+		return () => clearInterval(timer);
+	}, []);
 
 	const fetchUserData = async () => {
 		const user = auth.currentUser;
@@ -122,6 +155,8 @@ export function MyEvents() {
 								eventData.lng
 							);
 
+							const timeLeft = calculateTimeLeft(eventData.date);
+
 							return {
 								id: eventDoc.id,
 								...eventData,
@@ -129,6 +164,7 @@ export function MyEvents() {
 								participantImages:
 									participantImages.filter(Boolean),
 								distance,
+								timeLeft,
 							};
 						}
 						return null;
@@ -167,12 +203,15 @@ export function MyEvents() {
 							eventData.lng
 						);
 
+						const timeLeft = calculateTimeLeft(eventData.date);
+
 						return {
 							id: doc.id,
 							...eventData,
 							participantImages:
 								participantImages.filter(Boolean),
 							distance,
+							timeLeft,
 						};
 					})
 				);
@@ -346,12 +385,23 @@ export function MyEvents() {
 											className="w-full h-56 object-cover"
 										/>
 										<div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black opacity-60"></div>
-										{event.distance !== null && (
-											<div className="absolute top-2 right-2 bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
-												<MapPin className="w-4 h-4 mr-1" />
-												{event.distance.toFixed(1)} km
+										<div className="absolute top-2 right-2 flex space-x-2">
+											<div
+												className={`${getTimeLeftColor(
+													event.timeLeft
+												)} text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center`}
+											>
+												<Clock className="w-4 h-4 mr-1" />
+												{formatTimeLeft(event.timeLeft)}
 											</div>
-										)}
+											{event.distance !== null && (
+												<div className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
+													<MapPin className="w-4 h-4 mr-1" />
+													{event.distance.toFixed(1)}{" "}
+													km
+												</div>
+											)}
+										</div>
 										<div className="absolute bottom-2 left-2 right-2">
 											<div className="flex flex-wrap gap-2">
 												<span className="bg-black text-white px-2 py-1 rounded-full text-xs">
@@ -391,7 +441,9 @@ export function MyEvents() {
 												{format(
 													new Date(event.date),
 													"dd MMMM yyyy",
-													{ locale: pl }
+													{
+														locale: pl,
+													}
 												)}{" "}
 												o {event.time}
 											</span>
@@ -452,8 +504,7 @@ export function MyEvents() {
 	return (
 		<div className="h-full bg-gray-100 flex flex-col">
 			<div className="bg-white shadow z-10">
-				<div className="container mx-auto px-4 py-2 flex items-center  justify-between h-14">
-					<div className="flex-1"></div>
+				<div className="container mx-auto px-4 py-2 flex items-center justify-between h-14">
 					<div className="flex items-center space-x-4">
 						<Button
 							variant={
@@ -488,7 +539,6 @@ export function MyEvents() {
 							<span className="text-sm">Utworzone</span>
 						</Button>
 					</div>
-					<div className="flex-1"></div>
 				</div>
 			</div>
 
@@ -507,40 +557,34 @@ export function MyEvents() {
 							}}
 							className="absolute inset-0 bg-gray-100"
 						>
-							<div className="relative h-full">
-								<CardView
-									event={events[activeTab].find(
-										(event) => event.id === selectedEventId
-									)}
-									onClose={handleCloseCardView}
-									showCloseButton={true}
-									showNextButton={false}
-									onJoin={
-										activeTab === "liked"
-											? handleLikeEvent
-											: undefined
-									}
-									onLike={undefined}
-									onDislike={
-										activeTab === "participating"
-											? () =>
-													handleLeaveEvent(
-														selectedEventId
-													)
-											: activeTab === "created"
-											? () =>
-													handleDeleteEvent(
-														selectedEventId
-													)
-											: activeTab === "liked"
-											? () =>
-													handleLeaveEvent(
-														selectedEventId
-													)
-											: undefined
-									}
-								/>
-							</div>
+							<CardView
+								event={events[activeTab].find(
+									(event) => event.id === selectedEventId
+								)}
+								onClose={handleCloseCardView}
+								showCloseButton={true}
+								showNextButton={false}
+								onJoin={
+									activeTab === "liked"
+										? () => handleLikeEvent(selectedEventId)
+										: null
+								}
+								onDislike={
+									activeTab === "participating"
+										? () =>
+												handleLeaveEvent(
+													selectedEventId
+												)
+										: activeTab === "created"
+										? () =>
+												handleDeleteEvent(
+													selectedEventId
+												)
+										: null
+								}
+								getTimeLeftColor={getTimeLeftColor}
+								formatTimeLeft={formatTimeLeft}
+							/>
 						</motion.div>
 					)}
 				</AnimatePresence>

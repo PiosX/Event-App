@@ -1,18 +1,23 @@
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, MapPin, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
 import animationNotFound from "../assets/animation-notFound.json";
 
-export function ListView({ events, onSelectEvent }) {
+export function ListView({
+	events,
+	onSelectEvent,
+	getTimeLeftColor,
+	formatTimeLeft,
+}) {
 	const mapping = {
 		gender: "Płeć",
 		age: "Wiek",
 		location: "Lokalizacja",
 		other: "Inne",
 	};
-	console.log("jestem w listview...");
+
 	if (events.length === 0) {
 		return (
 			<div className="h-full flex flex-col items-center justify-center">
@@ -55,12 +60,22 @@ export function ListView({ events, onSelectEvent }) {
 										className="w-full h-56 object-cover"
 									/>
 									<div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black opacity-60"></div>
-									{event.distance !== null && (
-										<div className="absolute top-2 right-2 bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
-											<MapPin className="w-4 h-4 mr-1" />
-											{event.distance.toFixed(1)} km
+									<div className="absolute top-2 right-2 flex space-x-2">
+										<div
+											className={`${getTimeLeftColor(
+												event.timeLeft
+											)} text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center`}
+										>
+											<Clock className="w-4 h-4 mr-1" />
+											{formatTimeLeft(event.timeLeft)}
 										</div>
-									)}
+										{event.distance !== null && (
+											<div className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
+												<MapPin className="w-4 h-4 mr-1" />
+												{event.distance.toFixed(1)} km
+											</div>
+										)}
+									</div>
 									<div className="absolute bottom-2 left-2 right-2">
 										<div className="flex flex-wrap gap-2">
 											<span className="bg-black text-white px-2 py-1 rounded-full text-xs">
