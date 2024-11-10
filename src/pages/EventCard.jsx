@@ -475,15 +475,12 @@ export default function EventCard() {
 						{events.length > 0 ? (
 							<motion.div
 								key={currentEventIndex}
-								custom={direction}
 								initial={{
-									opacity: 0,
-									x: direction > 0 ? 300 : -300,
+									scale: 0.5, // Start smaller
 								}}
-								animate={{ opacity: 1, x: 0 }}
+								animate={{ scale: 1 }} // Scale to normal size
 								exit={{
-									opacity: 0,
-									x: direction < 0 ? 300 : -300,
+									scale: 1, // Scale down when exiting
 								}}
 								transition={{
 									type: "spring",

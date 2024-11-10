@@ -90,8 +90,6 @@ export function CardView({
 				rotateX: 15,
 				opacity: 1,
 			});
-		} else {
-			controls.start({ x: 0, rotateX: 0, rotateY: 0, opacity: 1 });
 		}
 	}, [isDragging, dragDirection, controls]);
 
