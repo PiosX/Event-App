@@ -1,4 +1,7 @@
-import { useState } from "react";
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import {
 	Heart,
 	X,
@@ -8,19 +11,18 @@ import {
 	ChevronRight,
 	ArrowLeft,
 	Clock,
+	Check,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function CardView({
 	event,
-	onSwipe,
 	nextEvent,
 	onClose,
 	showCloseButton = false,
-	showNextButton = true,
 	onJoin,
 	onLike,
 	onDislike,
@@ -31,38 +33,67 @@ export function CardView({
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
-	const [showLikeAnimation, setShowLikeAnimation] = useState(false);
-	const cardVariants = {
-		initial: { opacity: 1, scale: 1 },
-		removing: (action) => {
-			switch (action) {
-				case "join":
-					return {
-						opacity: 0,
-						x: 300,
-						transition: { duration: 0.3 },
-					};
-				case "like":
-					return {
-						opacity: 0,
-						x: 300,
-						transition: { duration: 0.3 },
-					};
-				case "dislike":
-					return {
-						opacity: 0,
-						x: -300,
-						transition: { duration: 0.3 },
-					};
-				default:
-					return {
-						opacity: 0,
-						scale: 0.8,
-						transition: { duration: 0.3 },
-					};
-			}
-		},
+	const [isDragging, setIsDragging] = useState(false);
+	const [dragDirection, setDragDirection] = useState(null);
+	const controls = useAnimation();
+
+	const handleTouchStart = (e) => {
+		setTouchEnd(null);
+		setTouchStart(e.targetTouches[0].clientX);
 	};
+
+	const handleTouchMove = (e) => {
+		setTouchEnd(e.targetTouches[0].clientX);
+		const distance = touchStart - e.targetTouches[0].clientX;
+		if (Math.abs(distance) > 50) {
+			setIsDragging(true);
+			setDragDirection(distance > 0 ? "left" : "right");
+		}
+	};
+
+	const handleTouchEnd = async () => {
+		if (!touchStart || !touchEnd) return;
+		const distance = touchStart - touchEnd;
+		const isLeftSwipe = distance > 100;
+		const isRightSwipe = distance < -100;
+
+		if (isLeftSwipe) {
+			await controls.start({
+				x: -window.innerWidth - 100,
+				rotateX: 15,
+				opacity: 0,
+				transition: { duration: 0.3 },
+			});
+			onDislike && onDislike(event.id);
+			nextEvent();
+		} else if (isRightSwipe) {
+			await controls.start({
+				x: window.innerWidth + 100,
+				rotateX: -15,
+				opacity: 0,
+				transition: { duration: 0.3 },
+			});
+			onJoin && onJoin(event.id);
+			nextEvent();
+		} else {
+			controls.start({ x: 0, rotateX: 0, opacity: 1 });
+		}
+		setIsDragging(false);
+		setDragDirection(null);
+	};
+
+	useEffect(() => {
+		if (isDragging) {
+			controls.start({
+				x: dragDirection === "left" ? -100 : 100,
+				rotateY: dragDirection === "left" ? 15 : -15,
+				rotateX: 15,
+				opacity: 1,
+			});
+		} else {
+			controls.start({ x: 0, rotateX: 0, rotateY: 0, opacity: 1 });
+		}
+	}, [isDragging, dragDirection, controls]);
 
 	if (!event) {
 		return (
@@ -89,54 +120,32 @@ export function CardView({
 		window.open(url, "_blank");
 	};
 
-	const handleTouchStart = (e) => {
-		setTouchEnd(null);
-		setTouchStart(e.targetTouches[0].clientX);
-	};
-
-	const handleTouchMove = (e) => {
-		setTouchEnd(e.targetTouches[0].clientX);
-	};
-
-	const handleTouchEnd = () => {
-		if (!touchStart || !touchEnd) return;
-		const distance = touchStart - touchEnd;
-		const isLeftSwipe = distance > 50;
-		if (isLeftSwipe) {
-			onSwipe(1);
-		}
-	};
-
-	const handleJoin = () => {
-		onJoin && onJoin(event.id);
-	};
-
-	const handleLike = () => {
-		setShowLikeAnimation(true);
-		setTimeout(() => {
-			setShowLikeAnimation(false);
-			onLike && onLike(event.id);
-		}, 300);
-	};
-
-	const handleDislike = () => {
-		onDislike && onDislike(event.id);
-	};
-
 	return (
-		<div className="h-full p-4 bg-gray-100 flex flex-col">
-			<motion.div
+		<motion.div
+			className="h-full p-4 bg-gray-100 flex flex-col"
+			initial={false}
+			animate={controls}
+			exit={
+				isRemoving
+					? {
+							x:
+								removeAction === "join" ||
+								removeAction === "like"
+									? 300
+									: -300,
+							opacity: 0,
+							transition: { duration: 0.5 },
+					  }
+					: {}
+			}
+		>
+			<Card
 				className="flex-grow flex flex-col bg-white rounded-lg shadow-lg overflow-hidden"
-				initial={"initial"}
-				animate={isRemoving ? "removing" : "initial"}
-				custom={removeAction}
-				variants={cardVariants}
-				transition={{ duration: 0.3 }}
 				onTouchStart={handleTouchStart}
 				onTouchMove={handleTouchMove}
 				onTouchEnd={handleTouchEnd}
 			>
-				<div className="flex-grow overflow-y-auto">
+				<CardContent className="flex-grow overflow-y-auto p-0">
 					<div className="relative h-[66vh]">
 						<img
 							src={event.image}
@@ -189,9 +198,7 @@ export function CardView({
 											>
 												{mapping[key] || ""}: {value}
 											</span>
-										) : (
-											""
-										)
+										) : null
 									)}
 								</div>
 								<div className="flex items-center justify-between">
@@ -249,28 +256,6 @@ export function CardView({
 								defaultMonth={eventDate}
 								locale={pl}
 								className="rounded-md border w-full"
-								classNames={{
-									months: "w-full",
-									month: "w-full",
-									table: "w-full border-collapse",
-									head_row: "flex w-full mt-2",
-									head_cell:
-										"text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
-									row: "flex w-full mt-2",
-									cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20 w-full",
-									day: "h-9 w-full p-0 font-normal aria-selected:opacity-100",
-									day_selected:
-										"bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-md",
-									day_today:
-										"bg-accent text-accent-foreground",
-									day_outside:
-										"text-muted-foreground opacity-50",
-									day_disabled:
-										"text-muted-foreground opacity-50",
-									day_range_middle:
-										"aria-selected:bg-accent aria-selected:text-accent-foreground",
-									day_hidden: "invisible",
-								}}
 							/>
 						</div>
 						<button
@@ -281,53 +266,38 @@ export function CardView({
 							Otwórz w Google Maps
 						</button>
 					</div>
-				</div>
-			</motion.div>
+				</CardContent>
+			</Card>
 			<div className="mt-4 flex justify-between items-center p-4 bg-white shadow-lg rounded-lg">
 				<div className="flex-1"></div>
 				<div className="flex space-x-4">
-					{onJoin && (
+					{onDislike && (
 						<button
-							className="bg-green-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
-							onClick={handleJoin}
+							className="bg-red-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
+							onClick={() => onDislike(event.id)}
 						>
-							<UserPlus className="w-6 h-6" />
+							<X className="w-6 h-6" />
 						</button>
 					)}
 					{onLike && (
 						<button
 							className="bg-blue-500 text-white p-3 rounded-full relative w-12 h-12 flex items-center justify-center"
-							onClick={handleLike}
+							onClick={() => onLike(event.id)}
 						>
-							<AnimatePresence>
-								{showLikeAnimation ? (
-									<motion.div
-										key="filled"
-										initial={{ scale: 0 }}
-										animate={{ scale: 1 }}
-										exit={{ scale: 0 }}
-										transition={{ duration: 0.3 }}
-										className="absolute inset-0 flex items-center justify-center"
-									>
-										<Heart className="w-6 h-6 fill-current" />
-									</motion.div>
-								) : (
-									<Heart className="w-6 h-6" />
-								)}
-							</AnimatePresence>
+							<Heart className="w-6 h-6" />
 						</button>
 					)}
-					{onDislike && (
+					{onJoin && (
 						<button
-							className="bg-red-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
-							onClick={handleDislike}
+							className="bg-green-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
+							onClick={() => onJoin(event.id)}
 						>
-							<X className="w-6 h-6" />
+							<UserPlus className="w-6 h-6" />
 						</button>
 					)}
 				</div>
 				<div className="flex-1 flex justify-end">
-					{showNextButton && (
+					{nextEvent && (
 						<button
 							onClick={nextEvent}
 							className="bg-gray-200 p-3 rounded-full"
@@ -337,6 +307,27 @@ export function CardView({
 					)}
 				</div>
 			</div>
-		</div>
+			{/* Swipe indicators */}
+			<AnimatePresence>
+				{isDragging && (
+					<motion.div
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+						className="absolute inset-0 flex items-center justify-center pointer-events-none"
+					>
+						{dragDirection === "left" ? (
+							<div className="bg-red-500 rounded-lg p-4">
+								<X className="w-24 h-24 text-white" />
+							</div>
+						) : (
+							<div className="bg-green-500 rounded-lg p-4">
+								<Check className="w-24 h-24 text-white" />
+							</div>
+						)}
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</motion.div>
 	);
 }

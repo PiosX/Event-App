@@ -538,14 +538,11 @@ export default function EventCard() {
 				<AnimatePresence>
 					{selectedEventId && (
 						<motion.div
-							initial={{ y: "100%" }}
-							animate={{ y: 0 }}
-							exit={{ y: "100%" }}
-							transition={{
-								type: "spring",
-								damping: 25,
-								stiffness: 500,
-							}}
+							key={event.id}
+							initial={{ opacity: 0, x: 300 }}
+							animate={{ opacity: 1, x: 0 }}
+							exit={{ opacity: 0, x: -300 }}
+							transition={{ duration: 0.5 }}
 							className="absolute inset-0 bg-gray-100"
 						>
 							<CardView
