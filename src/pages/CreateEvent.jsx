@@ -333,6 +333,9 @@ export default function CreateEvent({ onEventCreated }) {
 				image: imageUrl,
 				creator: user,
 				participants: [user],
+				disliked: 0,
+				liked: 0,
+				reported: 0,
 			};
 
 			const eventRef = await addDoc(collection(db, "events"), eventData);

@@ -174,6 +174,8 @@ export default function UserCreator() {
 	const storage = getStorage();
 	const auth = getAuth();
 	const user = auth.currentUser ? auth.currentUser.uid : null;
+	const defaultProfileImage =
+		"https://firebasestorage.googleapis.com/v0/b/eventapp-1b046.appspot.com/o/static%2F1731795031624.webp?alt=media&token=23aed4ef-38ac-41a9-a3dc-8b3ccbf39392";
 
 	useEffect(() => {
 		checkLocationPermission();
@@ -248,6 +250,9 @@ export default function UserCreator() {
 	};
 
 	const uploadImage = async (imageDataUrl) => {
+		if (!imageDataUrl) {
+			return defaultProfileImage;
+		}
 		try {
 			const processedImageBlob = await processImage(
 				imageDataUrl,
@@ -259,8 +264,11 @@ export default function UserCreator() {
 			const url = await getDownloadURL(storageRef);
 			return url;
 		} catch (error) {
-			console.error("Error przetwarzania lub przesyłania zdjęcia:", error);
-			throw error;
+			console.error(
+				"Error przetwarzania lub przesyłania zdjęcia:",
+				error
+			);
+			return defaultProfileImage;
 		}
 	};
 
@@ -361,11 +369,6 @@ export default function UserCreator() {
 				setIsSubmitting(false);
 				return;
 			}
-		}
-		if (!croppedImage) {
-			setError("Proszę dodać zdjęcie profilowe.");
-			setIsSubmitting(false);
-			return;
 		}
 		if (selectedInterests.length === 0) {
 			setError("Proszę wybrać co najmniej jedno zainteresowanie.");
@@ -494,6 +497,7 @@ export default function UserCreator() {
 							</div>
 							<Label htmlFor="person-photo">Zdjęcie</Label>
 						</div>
+
 						<div className="space-y-2">
 							<Label htmlFor="name">Imię</Label>
 							<Input

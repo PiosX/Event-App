@@ -19,9 +19,9 @@ import {
 	updateDoc,
 	arrayUnion,
 	arrayRemove,
-	orderBy,
 	limit,
 	startAfter,
+	increment,
 } from "firebase/firestore";
 import {
 	eventMeetsUserPreferences,
@@ -140,6 +140,7 @@ export default function EventCard() {
 					const filteredEvents = allEvents.filter(
 						(eventData) =>
 							!excludedEventIds.includes(eventData.id) &&
+							eventData.creator !== user.uid &&
 							(eventData.capacity === -1 ||
 								eventData.participants.length <
 									eventData.capacity)
@@ -323,26 +324,46 @@ export default function EventCard() {
 	};
 
 	const handleLikeEvent = async (eventId) => {
-		await updateUserEvents(eventId, "liked");
-		removeEventWithAnimation(eventId, "like");
-		if (eventView === "list") {
-			setEventView("list");
-			setSelectedEventId(null);
+		try {
+			await updateUserEvents(eventId, "liked");
+
+			const eventRef = doc(db, "events", eventId);
+			await updateDoc(eventRef, {
+				liked: increment(1),
+			});
+
+			removeEventWithAnimation(eventId, "like");
+			if (eventView === "list") {
+				setEventView("list");
+				setSelectedEventId(null);
+			}
+		} catch (error) {
+			console.error("Error liking event:", error);
 		}
 	};
 
 	const handleDislikeEvent = async (eventId) => {
-		await updateUserEvents(eventId, "banned");
-		await updateDoc(doc(db, "events", eventId), {
-			participants: arrayRemove(auth.currentUser.uid),
-		});
-		await updateDoc(doc(db, "chats", eventId), {
-			participants: arrayRemove(auth.currentUser.uid),
-		});
-		removeEventWithAnimation(eventId, "dislike");
-		if (eventView === "list") {
-			setEventView("list");
-			setSelectedEventId(null);
+		try {
+			await updateUserEvents(eventId, "banned");
+
+			const eventRef = doc(db, "events", eventId);
+			await updateDoc(eventRef, {
+				disliked: increment(1),
+			});
+
+			await updateDoc(eventRef, {
+				participants: arrayRemove(auth.currentUser.uid),
+			});
+			await updateDoc(doc(db, "chats", eventId), {
+				participants: arrayRemove(auth.currentUser.uid),
+			});
+			removeEventWithAnimation(eventId, "dislike");
+			if (eventView === "list") {
+				setEventView("list");
+				setSelectedEventId(null);
+			}
+		} catch (error) {
+			console.error("Error disliking event:", error);
 		}
 	};
 
