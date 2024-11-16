@@ -7,29 +7,23 @@ import Lottie from "lottie-react";
 import animationNotFound from "../assets/animation-notFound.json";
 import { calculateTimeLeft, formatTimeLeft } from "@/lib/event-functions";
 
-export function ListView({ events, onSelectEvent, getTimeLeftColor }) {
-	const [timeLefts, setTimeLefts] = useState([]);
-
+export function ListView({
+	events,
+	onSelectEvent,
+	getTimeLeftColor,
+	setEvents,
+}) {
 	useEffect(() => {
-		const initialTimes = events.map((event) =>
-			calculateTimeLeft(event.date)
-		);
-		setTimeLefts(initialTimes);
-
 		const timer = setInterval(() => {
-			setTimeLefts((prevTimeLefts) =>
-				prevTimeLefts.map((timeLeft, index) => {
-					if (timeLeft > 0) {
-						return timeLeft - 1;
-					} else {
-						return 0;
-					}
-				})
+			setEvents((prevEvents) =>
+				prevEvents.map((event) => ({
+					...event,
+					timeLeft: calculateTimeLeft(event.date),
+				}))
 			);
 		}, 1000);
-
 		return () => clearInterval(timer);
-	}, [events]);
+	}, []);
 
 	const mapping = {
 		gender: "Płeć",
@@ -83,11 +77,11 @@ export function ListView({ events, onSelectEvent, getTimeLeftColor }) {
 									<div className="absolute top-2 right-2 flex space-x-2">
 										<div
 											className={`${getTimeLeftColor(
-												timeLefts[index]
+												event.timeLeft
 											)} text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center`}
 										>
 											<Clock className="w-4 h-4 mr-1" />
-											{formatTimeLeft(timeLefts[index])}
+											{formatTimeLeft(event.timeLeft)}
 										</div>
 										{event.distance !== null && (
 											<div className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">

@@ -504,15 +504,16 @@ export default function EventCard() {
 						events={events}
 						onSelectEvent={handleSelectEvent}
 						getTimeLeftColor={getTimeLeftColor}
+						setEvents={setEvents}
 					/>
 				)}
 				<AnimatePresence>
 					{selectedEventId && (
 						<motion.div
 							key={selectedEventId}
-							initial={{ opacity: 0, x: 300 }}
+							initial={{ opacity: 0.6, x: 600 }}
 							animate={{ opacity: 1, x: 0 }}
-							exit={{ opacity: 0, x: -300 }}
+							exit={{ opacity: 0.6, x: -600 }}
 							transition={{ duration: 0.5 }}
 							className="absolute inset-0 bg-gray-100"
 						>

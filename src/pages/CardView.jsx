@@ -63,6 +63,39 @@ export function CardView({
 		}
 	};
 
+	const handleSwipe = async (direction) => {
+		if (direction === "left") {
+			if (!showCloseButton) {
+				await controls.start({
+					x: -window.innerWidth - 100,
+					opacity: 0.5,
+					transition: { duration: 0.5 },
+				});
+			}
+
+			onDislike(event.id);
+		} else if (direction === "right") {
+			if (!showCloseButton) {
+				await controls.start({
+					x: window.innerWidth + 100,
+					opacity: 0.5,
+					transition: { duration: 0.5 },
+				});
+			}
+			onJoin(event.id);
+		} else {
+			if (!showCloseButton) {
+				await controls.start({
+					y: -window.innerHeight - 100,
+					opacity: 0.5,
+					transition: { duration: 0.5 },
+				});
+			}
+			onLike(event.id);
+		}
+		onSwipe(direction);
+	};
+
 	const handleTouchEnd = async () => {
 		if (!isInteractive || !touchStart || !touchEnd) return;
 		const distance = touchStart - touchEnd;
@@ -304,7 +337,7 @@ export function CardView({
 						{onDislike && (
 							<button
 								className="bg-red-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
-								onClick={() => onDislike(event.id)}
+								onClick={() => handleSwipe("left")}
 							>
 								<X className="w-6 h-6" />
 							</button>
@@ -312,7 +345,7 @@ export function CardView({
 						{onLike && (
 							<button
 								className="bg-blue-500 text-white p-3 rounded-full relative w-12 h-12 flex items-center justify-center"
-								onClick={() => onLike(event.id)}
+								onClick={() => handleSwipe("top")}
 							>
 								<Heart className="w-6 h-6" />
 							</button>
@@ -320,21 +353,21 @@ export function CardView({
 						{onJoin && (
 							<button
 								className="bg-green-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
-								onClick={() => onJoin(event.id)}
+								onClick={() => handleSwipe("right")}
 							>
 								<UserPlus className="w-6 h-6" />
 							</button>
 						)}
 					</div>
 					<div className="flex-1 flex justify-end">
-						{showNextButton && nextEvent && (
+						{/* {showNextButton && nextEvent && (
 							<button
 								onClick={nextEvent}
 								className="bg-gray-200 p-3 rounded-full"
 							>
 								<ChevronRight className="w-6 h-6" />
 							</button>
-						)}
+						)} */}
 					</div>
 				</div>
 			)}
