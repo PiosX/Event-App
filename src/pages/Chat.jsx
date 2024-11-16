@@ -85,7 +85,7 @@ export default function Chat() {
 			setAllConversations(uniqueEvents);
 			setFilteredConversations(uniqueEvents);
 
-			// Set up real-time listeners for each chat
+			// listener do czatów
 			uniqueEvents.forEach((event) => {
 				const chatRef = doc(db, "chats", event.id);
 				onSnapshot(chatRef, (docSnapshot) => {

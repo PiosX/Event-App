@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion, useAnimation, AnimatePresence } from "framer-motion";
 import {
 	Heart,
 	X,
@@ -17,32 +17,44 @@ import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
+import { calculateTimeLeft, formatTimeLeft } from "@/lib/event-functions";
 
 export function CardView({
 	event,
+	onSwipe,
 	nextEvent,
-	onClose,
 	showCloseButton = false,
+	showNextButton = true,
 	onJoin,
 	onLike,
 	onDislike,
 	getTimeLeftColor,
-	formatTimeLeft,
-	isRemoving,
-	removeAction,
+	isInteractive = true,
+	onClose,
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragDirection, setDragDirection] = useState(null);
+	const [time, setTime] = useState(calculateTimeLeft(event.date));
 	const controls = useAnimation();
 
+	useEffect(() => {
+		const timer = setInterval(() => {
+			setTime(calculateTimeLeft(event.date));
+		}, 1000);
+
+		return () => clearInterval(timer);
+	}, []);
+
 	const handleTouchStart = (e) => {
+		if (!isInteractive) return;
 		setTouchEnd(null);
 		setTouchStart(e.targetTouches[0].clientX);
 	};
 
 	const handleTouchMove = (e) => {
+		if (!isInteractive) return;
 		setTouchEnd(e.targetTouches[0].clientX);
 		const distance = touchStart - e.targetTouches[0].clientX;
 		if (Math.abs(distance) > 50) {
@@ -52,7 +64,7 @@ export function CardView({
 	};
 
 	const handleTouchEnd = async () => {
-		if (!touchStart || !touchEnd) return;
+		if (!isInteractive || !touchStart || !touchEnd) return;
 		const distance = touchStart - touchEnd;
 		const isLeftSwipe = distance > 100;
 		const isRightSwipe = distance < -100;
@@ -60,23 +72,19 @@ export function CardView({
 		if (isLeftSwipe) {
 			await controls.start({
 				x: -window.innerWidth - 100,
-				rotateX: 15,
 				opacity: 0,
 				transition: { duration: 0.3 },
 			});
-			onDislike && onDislike(event.id);
-			nextEvent();
+			onSwipe("left");
 		} else if (isRightSwipe) {
 			await controls.start({
 				x: window.innerWidth + 100,
-				rotateX: -15,
 				opacity: 0,
 				transition: { duration: 0.3 },
 			});
-			onJoin && onJoin(event.id);
-			nextEvent();
+			onSwipe("right");
 		} else {
-			controls.start({ x: 0, rotateX: 0, opacity: 1 });
+			controls.start({ x: 0, opacity: 1 });
 		}
 		setIsDragging(false);
 		setDragDirection(null);
@@ -86,21 +94,13 @@ export function CardView({
 		if (isDragging) {
 			controls.start({
 				x: dragDirection === "left" ? -100 : 100,
-				rotateY: dragDirection === "left" ? 15 : -15,
-				rotateX: 15,
 				opacity: 1,
 			});
 		}
 	}, [isDragging, dragDirection, controls]);
 
 	if (!event) {
-		return (
-			<div className="h-full flex items-center justify-center bg-gray-100">
-				<p className="text-xl text-gray-600 text-center px-4">
-					Niestety nie mamy dla Ciebie żadnych wydarzeń :(
-				</p>
-			</div>
-		);
+		return null;
 	}
 
 	const eventDate = new Date(event.date);
@@ -123,22 +123,10 @@ export function CardView({
 			className="h-full p-4 bg-gray-100 flex flex-col"
 			initial={false}
 			animate={controls}
-			exit={
-				isRemoving
-					? {
-							x:
-								removeAction === "join" ||
-								removeAction === "like"
-									? 300
-									: -300,
-							opacity: 0,
-							transition: { duration: 0.5 },
-					  }
-					: {}
-			}
+			layout
 		>
 			<Card
-				className="flex-grow flex flex-col bg-white rounded-lg shadow-lg overflow-hidden"
+				className="flex-grow flex flex-col bg-white rounded-lg shadow-lg overflow-hidden relative"
 				onTouchStart={handleTouchStart}
 				onTouchMove={handleTouchMove}
 				onTouchEnd={handleTouchEnd}
@@ -168,14 +156,15 @@ export function CardView({
 									)} text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center`}
 								>
 									<Clock className="w-4 h-4 mr-1" />
-									{formatTimeLeft(event.timeLeft)}
+									{formatTimeLeft(time)}
 								</div>
-								{event.distance !== null && (
-									<div className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
-										<MapPin className="w-4 h-4 mr-1" />
-										{event.distance.toFixed(1)} km
-									</div>
-								)}
+								{event.distance !== undefined &&
+									event.distance !== null && (
+										<div className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">
+											<MapPin className="w-4 h-4 mr-1" />
+											{event.distance.toFixed(1)} km
+										</div>
+									)}
 							</div>
 							<div className="absolute bottom-0 left-0 right-0 p-6">
 								<h2 className="text-white text-3xl font-bold mb-2">
@@ -254,6 +243,28 @@ export function CardView({
 								defaultMonth={eventDate}
 								locale={pl}
 								className="rounded-md border w-full"
+								classNames={{
+									months: "w-full",
+									month: "w-full",
+									table: "w-full border-collapse",
+									head_row: "flex w-full mt-2",
+									head_cell:
+										"text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
+									row: "flex w-full mt-2",
+									cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20 w-full",
+									day: "h-9 w-full p-0 font-normal aria-selected:opacity-100",
+									day_selected:
+										"bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-md",
+									day_today:
+										"bg-accent text-accent-foreground rounded-md",
+									day_outside:
+										"text-muted-foreground opacity-50",
+									day_disabled:
+										"text-muted-foreground opacity-50",
+									day_range_middle:
+										"aria-selected:bg-accent aria-selected:text-accent-foreground",
+									day_hidden: "invisible",
+								}}
 							/>
 						</div>
 						<button
@@ -265,67 +276,68 @@ export function CardView({
 						</button>
 					</div>
 				</CardContent>
+				<AnimatePresence>
+					{isDragging && (
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							className="absolute inset-0 flex items-center justify-center pointer-events-none"
+						>
+							{dragDirection === "left" ? (
+								<div className="bg-red-500 rounded-lg p-4">
+									<X className="w-24 h-24 text-white" />
+								</div>
+							) : (
+								<div className="bg-green-500 rounded-lg p-4">
+									<Check className="w-24 h-24 text-white" />
+								</div>
+							)}
+						</motion.div>
+					)}
+				</AnimatePresence>
 			</Card>
-			<div className="mt-4 flex justify-between items-center p-4 bg-white shadow-lg rounded-lg">
-				<div className="flex-1"></div>
-				<div className="flex space-x-4">
-					{onDislike && (
-						<button
-							className="bg-red-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
-							onClick={() => onDislike(event.id)}
-						>
-							<X className="w-6 h-6" />
-						</button>
-					)}
-					{onLike && (
-						<button
-							className="bg-blue-500 text-white p-3 rounded-full relative w-12 h-12 flex items-center justify-center"
-							onClick={() => onLike(event.id)}
-						>
-							<Heart className="w-6 h-6" />
-						</button>
-					)}
-					{onJoin && (
-						<button
-							className="bg-green-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
-							onClick={() => onJoin(event.id)}
-						>
-							<UserPlus className="w-6 h-6" />
-						</button>
-					)}
-				</div>
-				<div className="flex-1 flex justify-end">
-					{nextEvent && (
-						<button
-							onClick={nextEvent}
-							className="bg-gray-200 p-3 rounded-full"
-						>
-							<ChevronRight className="w-6 h-6" />
-						</button>
-					)}
-				</div>
-			</div>
-			{/* Swipe indicators */}
-			<AnimatePresence>
-				{isDragging && (
-					<motion.div
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						className="absolute inset-0 flex items-center justify-center pointer-events-none"
-					>
-						{dragDirection === "left" ? (
-							<div className="bg-red-500 rounded-lg p-4">
-								<X className="w-24 h-24 text-white" />
-							</div>
-						) : (
-							<div className="bg-green-500 rounded-lg p-4">
-								<Check className="w-24 h-24 text-white" />
-							</div>
+			{isInteractive && (
+				<div className="mt-4 flex justify-between items-center p-4 bg-white shadow-lg rounded-lg">
+					<div className="flex-1"></div>
+					<div className="flex space-x-4">
+						{onDislike && (
+							<button
+								className="bg-red-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
+								onClick={() => onDislike(event.id)}
+							>
+								<X className="w-6 h-6" />
+							</button>
 						)}
-					</motion.div>
-				)}
-			</AnimatePresence>
+						{onLike && (
+							<button
+								className="bg-blue-500 text-white p-3 rounded-full relative w-12 h-12 flex items-center justify-center"
+								onClick={() => onLike(event.id)}
+							>
+								<Heart className="w-6 h-6" />
+							</button>
+						)}
+						{onJoin && (
+							<button
+								className="bg-green-500 text-white p-3 rounded-full w-12 h-12 flex items-center justify-center"
+								onClick={() => onJoin(event.id)}
+							>
+								<UserPlus className="w-6 h-6" />
+							</button>
+						)}
+					</div>
+					<div className="flex-1 flex justify-end">
+						{showNextButton && nextEvent && (
+							<button
+								onClick={nextEvent}
+								className="bg-gray-200 p-3 rounded-full"
+							>
+								<ChevronRight className="w-6 h-6" />
+							</button>
+						)}
+					</div>
+				</div>
+			)}
 		</motion.div>
 	);
 }

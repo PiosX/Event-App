@@ -1,16 +1,36 @@
+import { useState, useEffect } from "react";
 import { Calendar, MapPin, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
 import animationNotFound from "../assets/animation-notFound.json";
+import { calculateTimeLeft, formatTimeLeft } from "@/lib/event-functions";
 
-export function ListView({
-	events,
-	onSelectEvent,
-	getTimeLeftColor,
-	formatTimeLeft,
-}) {
+export function ListView({ events, onSelectEvent, getTimeLeftColor }) {
+	const [timeLefts, setTimeLefts] = useState([]);
+
+	useEffect(() => {
+		const initialTimes = events.map((event) =>
+			calculateTimeLeft(event.date)
+		);
+		setTimeLefts(initialTimes);
+
+		const timer = setInterval(() => {
+			setTimeLefts((prevTimeLefts) =>
+				prevTimeLefts.map((timeLeft, index) => {
+					if (timeLeft > 0) {
+						return timeLeft - 1;
+					} else {
+						return 0;
+					}
+				})
+			);
+		}, 1000);
+
+		return () => clearInterval(timer);
+	}, [events]);
+
 	const mapping = {
 		gender: "Płeć",
 		age: "Wiek",
@@ -39,7 +59,7 @@ export function ListView({
 			<div className="h-full overflow-y-auto p-4">
 				<div className="max-w-2xl mx-auto space-y-4">
 					<AnimatePresence>
-						{events.map((event) => (
+						{events.map((event, index) => (
 							<motion.div
 								key={event.id}
 								className="bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer"
@@ -63,11 +83,11 @@ export function ListView({
 									<div className="absolute top-2 right-2 flex space-x-2">
 										<div
 											className={`${getTimeLeftColor(
-												event.timeLeft
+												timeLefts[index]
 											)} text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center`}
 										>
 											<Clock className="w-4 h-4 mr-1" />
-											{formatTimeLeft(event.timeLeft)}
+											{formatTimeLeft(timeLefts[index])}
 										</div>
 										{event.distance !== null && (
 											<div className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center">

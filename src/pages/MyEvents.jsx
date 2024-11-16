@@ -93,10 +93,10 @@ export function MyEvents() {
 				const userDoc = querySnapshot.docs[0];
 				setUserData(userDoc.data());
 			} else {
-				console.error("User document not found");
+				console.error("Brak dokumentu użytkownika");
 			}
 		} catch (error) {
-			console.error("Error fetching user data:", error);
+			console.error("Nie znaleziono danych użytkownika:", error);
 		}
 	};
 
@@ -222,7 +222,7 @@ export function MyEvents() {
 				[activeTab]: fetchedEvents,
 			}));
 		} catch (error) {
-			console.error("Error fetching events:", error);
+			console.error("Nie udało się uzyskać wydarzeń:", error);
 		}
 
 		setLoading(false);
@@ -325,7 +325,7 @@ export function MyEvents() {
 			}));
 			setSelectedEventId(null);
 		} catch (error) {
-			console.error("Error joining liked event:", error);
+			console.error("Nie udało się dołączyć do wydarzenia:", error);
 		}
 	};
 
@@ -342,7 +342,7 @@ export function MyEvents() {
 			}));
 			setSelectedEventId(null);
 		} catch (error) {
-			console.error("Error deleting event:", error);
+			console.error("Nie udało się usunąć wydarzenia:", error);
 		}
 	};
 

@@ -165,11 +165,9 @@ export function PreferencesPanel({
 					setSearchByDate(preferences.searchByDate || false);
 					setStartDate(preferences.startDate || "");
 					setEndDate(preferences.endDate || "");
-				} else {
-					console.log("No user document found");
 				}
 			} catch (error) {
-				console.error("Error fetching user preferences:", error);
+				console.error("Nie udało się pozyskać preferencji:", error);
 			}
 		}
 	};
@@ -231,12 +229,11 @@ export function PreferencesPanel({
 					await updateDoc(userDoc.ref, {
 						preferences: newPreferences,
 					});
-					console.log("Preferences saved successfully");
 				} else {
-					console.error("No user document found to update");
+					console.error("Nie znaleziono danych");
 				}
 			} catch (error) {
-				console.error("Error saving preferences:", error);
+				console.error("Nie udało się zapisać preferencji:", error);
 			}
 		}
 

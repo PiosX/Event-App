@@ -49,7 +49,104 @@ const interests = [
 	"Festiwale",
 	"Koncerty",
 	"Imprezy",
-	// ... (rest of the interests array)
+	"Gry planszowe",
+	"Gry wideo",
+	"Escape roomy",
+	"Karaoke",
+	"Gotowanie",
+	"Degustacja",
+	"Kino",
+	"Teatr",
+	"Stand-up",
+	"Taniec",
+	"Joga",
+	"Fitness",
+	"Siłownia",
+	"Bieganie",
+	"Jazda na rowerze",
+	"Siatkówka",
+	"Tenis",
+	"Badminton",
+	"Golf",
+	"Wspinaczka",
+	"Paintball",
+	"Laser tag",
+	"Squash",
+	"Zumba",
+	"Fotografia",
+	"Sztuka",
+	"Muzea",
+	"Galerie sztuki",
+	"Pikniki",
+	"Plaża",
+	"Pływanie",
+	"Surfing",
+	"Windsurfing",
+	"Nurkowanie",
+	"Żeglarstwo",
+	"Kajakarstwo",
+	"Wędkarstwo",
+	"Skoki spadochronowe",
+	"Bungee jumping",
+	"Loty balonem",
+	"Motoryzacja",
+	"Jazda konna",
+	"Snowboarding",
+	"Narciarstwo",
+	"Łyżwiarstwo",
+	"Jazda na rolkach",
+	"Parkour",
+	"Street workout",
+	"Salsa",
+	"Warsztaty plastyczne",
+	"DIY (zrób to sam)",
+	"Ogrodnictwo",
+	"Obserwacja gwiazd",
+	"Spacery",
+	"Zwiedzanie zamków",
+	"Festiwale filmowe",
+	"Aktorstwo",
+	"Cosplay",
+	"Technologia",
+	"Konferencje",
+	"Networking",
+	"Hackathony",
+	"Pisanie kreatywne",
+	"Rękodzieło",
+	"Wspólne zakupy",
+	"Gokarty",
+	"Rejsy",
+	"Warsztaty barmańskie",
+	"Imprezy tematyczne",
+	"Gry terenowe",
+	"Podchody",
+	"Zwiedzanie parków narodowych",
+	"Survival",
+	"Geocaching",
+	"Rozwój osobisty",
+	"Medytacja",
+	"Samorozwój",
+	"Konkursy talentów",
+	"Eventy startupowe",
+	"E-sport",
+	"Zwierzęta",
+	"Targi",
+	"Warsztaty aktorskie",
+	"Moda",
+	"Tatuaże",
+	"Street art",
+	"Obserwacja przyrody",
+	"Festiwale kultury",
+	"Piłka nożna",
+	"Spotkania integracyjne",
+	"Wyjście na miasto",
+	"Zoo",
+	"Poznawanie nowych ludzi",
+	"Terapie",
+	"Szkolenia",
+	"Kursy",
+	"Programowanie",
+	"Projektowanie",
 ];
 
 export default function UserProfile() {
@@ -81,8 +178,7 @@ export default function UserProfile() {
 		const fetchUserData = async () => {
 			if (userId) {
 				setLoading(true);
-
-				// Check local storage first
+				//sprawdzanie local storage na początku
 				const cachedUserData = localStorage.getItem(
 					`userData_${userId}`
 				);
@@ -102,7 +198,7 @@ export default function UserProfile() {
 					return;
 				}
 
-				// If not in local storage, fetch from database
+				// jeśli nie ma w local storage pobieramy z bazy
 				const q = query(
 					collection(db, "users"),
 					where("uid", "==", userId)
@@ -123,7 +219,6 @@ export default function UserProfile() {
 						});
 						setSelectedInterests(data.interests || []);
 
-						// Store in local storage
 						localStorage.setItem(
 							`userData_${userId}`,
 							JSON.stringify(data)
@@ -209,7 +304,7 @@ export default function UserProfile() {
 					URL.createObjectURL(processedImageBlob);
 				setCroppedImage(processedImageUrl);
 			} catch (error) {
-				console.error("Error processing image:", error);
+				console.error("Błąd przetwarzania zdjęcia:", error);
 			}
 		}
 		setIsDialogOpen(false);
@@ -232,7 +327,7 @@ export default function UserProfile() {
 			if (croppedImage) {
 				const storage = getStorage();
 
-				// Delete old image if it exists
+				//usuwamy stare zdjęcie jeśli istnieje
 				if (userData.profileImage) {
 					try {
 						const oldImagePath = userData.profileImage
@@ -243,14 +338,12 @@ export default function UserProfile() {
 						await deleteObject(oldImageRef);
 					} catch (deleteError) {
 						console.warn(
-							"Failed to delete old image:",
+							"Nie udało się usunąć starego zdjęcia:",
 							deleteError
 						);
-						// Continue with the upload process even if deletion fails
 					}
 				}
 
-				// Upload new image
 				const storageRef = ref(storage, `images/${Date.now()}.webp`);
 				const processedImageBlob = await processImage(
 					croppedImage,
@@ -278,7 +371,6 @@ export default function UserProfile() {
 				const userDoc = querySnapshot.docs[0];
 				await updateDoc(doc(db, "users", userDoc.id), updatedUserData);
 
-				// Update local storage
 				localStorage.setItem(
 					`userData_${currentUserId}`,
 					JSON.stringify(updatedUserData)
@@ -290,8 +382,7 @@ export default function UserProfile() {
 				throw new Error("User document not found");
 			}
 		} catch (error) {
-			console.error("Error updating profile:", error);
-			// You might want to show an error message to the user here
+			console.error("Błąd aktualizacji profilu:", error);
 		} finally {
 			setLoading(false);
 		}

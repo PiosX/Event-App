@@ -214,7 +214,7 @@ export default function UserCreator() {
 			setShowLocationPopup(false);
 			fetchUserLocation();
 		} catch (error) {
-			console.error("Error getting location:", error);
+			console.error("Błąd lokalizacji:", error);
 			if (error.code === 1) {
 				setLocationError(
 					"Odmówiono dostępu do lokalizacji. Aby korzystać z funkcji lokalizacji, zmień ustawienia przeglądarki i spróbuj ponownie."
@@ -259,7 +259,7 @@ export default function UserCreator() {
 			const url = await getDownloadURL(storageRef);
 			return url;
 		} catch (error) {
-			console.error("Error processing or uploading image:", error);
+			console.error("Error przetwarzania lub przesyłania zdjęcia:", error);
 			throw error;
 		}
 	};

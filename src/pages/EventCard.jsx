@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useCallback } from "react";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
 import { CreditCard, List, Settings, FrownIcon, Clock } from "lucide-react";
-import { CardView } from "./CardView";
-import { ListView } from "./ListView";
-import { PreferencesPanel } from "./PreferencesPanel";
 import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import Lottie from "lottie-react";
+import animationNotFound from "../assets/animation-notFound.json";
+import animationCreatedEvent from "../assets/animation-createdEvent.json";
 import { db, auth } from "../firebaseConfig";
 import {
 	collection,
@@ -18,8 +21,8 @@ import {
 	arrayRemove,
 	orderBy,
 	limit,
+	startAfter,
 } from "firebase/firestore";
-import { Button } from "@/components/ui/button";
 import {
 	eventMeetsUserPreferences,
 	fetchCreatorName,
@@ -29,11 +32,11 @@ import {
 	getCoordinates,
 	calculateTimeLeft,
 	getTimeLeftColor,
-	formatTimeLeft,
 } from "@/lib/event-functions";
-import Lottie from "lottie-react";
-import animationNotFound from "../assets/animation-notFound.json";
-import animationCreatedEvent from "../assets/animation-createdEvent.json";
+import EventCardStack from "@/components/ui/CardStack";
+import { CardView } from "./CardView";
+import { ListView } from "./ListView";
+import { PreferencesPanel } from "./PreferencesPanel";
 
 export default function EventCard() {
 	const [eventView, setEventView] = useState("card");
@@ -65,134 +68,173 @@ export default function EventCard() {
 		if (querySnapshot.empty) {
 			throw new Error("Nie znaleziono danych użytkownika");
 		}
-
 		const userData = querySnapshot.docs[0].data();
 		setUserData(userData);
 	}, []);
 
-	const fetchEvents = useCallback(async () => {
-		setIsLoading(true);
-		setError(null);
+	const fetchEvents = useCallback(
+		async (lastEventDate = null) => {
+			setIsLoading(true);
+			setError(null);
+
+			try {
+				const user = auth.currentUser;
+				if (!user) {
+					return [];
+				}
+
+				// Pobierz dane użytkownika
+				const userEventsDoc = await getDoc(
+					doc(db, "myevents", user.uid)
+				);
+				const userEventsData = userEventsDoc.data() || {};
+
+				const joinedEvents = userEventsData.joined || [];
+				const likedEvents = userEventsData.liked || [];
+				const bannedEvents = userEventsData.banned || [];
+
+				setMyEvents(joinedEvents);
+				setLikedEvents(likedEvents);
+				setBannedEvents(bannedEvents);
+
+				const excludedEventIds = [
+					...joinedEvents,
+					...likedEvents,
+					...bannedEvents,
+				];
+
+				const eventsRef = collection(db, "events");
+				let finalEvents = [];
+				let lastVisible = lastEventDate;
+				const limitPerPage = 10;
+				const totalLimit = 15;
+
+				// Pobieraj wydarzenia, aż znajdziesz 15 lub skończą się wydarzenia w bazie
+				while (finalEvents.length < totalLimit) {
+					let q = query(
+						eventsRef,
+						where("date", ">=", new Date().toISOString())
+					);
+
+					if (lastVisible) {
+						q = query(q, startAfter(lastVisible));
+					}
+
+					q = query(q, limit(limitPerPage));
+
+					const querySnapshot = await getDocs(q);
+
+					if (querySnapshot.empty) {
+						break;
+					}
+
+					lastVisible =
+						querySnapshot.docs[querySnapshot.docs.length - 1];
+
+					const allEvents = querySnapshot.docs.map((doc) => ({
+						id: doc.id,
+						...doc.data(),
+					}));
+
+					// filtracja wydarzeń
+					const filteredEvents = allEvents.filter(
+						(eventData) =>
+							!excludedEventIds.includes(eventData.id) &&
+							(eventData.capacity === -1 ||
+								eventData.participants.length <
+									eventData.capacity)
+					);
+
+					// Preferencje
+					let userLat = userData.lat;
+					let userLng = userData.lng;
+
+					if (userData.preferences.location) {
+						const coordinates = await getCoordinates([
+							userData.preferences.location,
+						]);
+						if (coordinates[userData.preferences.location]) {
+							userLat =
+								coordinates[userData.preferences.location].lat;
+							userLng =
+								coordinates[userData.preferences.location].lng;
+						}
+					}
+
+					const radius = userData.preferences.distance || 10;
+
+					for (const eventData of filteredEvents) {
+						if (!eventData.lat || !eventData.lng) continue;
+
+						const distance = calculateDistance(
+							userLat,
+							userLng,
+							eventData.lat,
+							eventData.lng
+						);
+						if (distance > radius) continue;
+
+						if (
+							userData.preferences.searchByDate &&
+							!eventMeetsUserPreferences(
+								eventData,
+								userData.preferences
+							)
+						) {
+							continue;
+						}
+
+						const creatorName = await fetchCreatorName(
+							eventData.creator
+						);
+						const participantImages = await fetchParticipantImages(
+							eventData.participants
+						);
+
+						finalEvents.push({
+							...eventData,
+							creatorName,
+							distance,
+							participantImages:
+								participantImages.filter(Boolean),
+							timeLeft: calculateTimeLeft(eventData.date),
+						});
+
+						if (finalEvents.length >= totalLimit) break;
+					}
+
+					if (querySnapshot.size < limitPerPage) {
+						break;
+					}
+				}
+
+				return finalEvents;
+			} catch (err) {
+				console.error("Błąd pozyskania danych:", err);
+				setError(
+					"Wystąpił błąd podczas ładowania wydarzeń. Proszę odświeżyć stronę."
+				);
+				return [];
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[userData]
+	);
+
+	const fetchNextEvent = async () => {
 		try {
-			const user = auth.currentUser;
-			if (!user) {
-				return;
+			const newEvents = await fetchEvents();
+			if (newEvents.length === 0) {
+				return [];
 			}
 
-			const userEventsDoc = await getDoc(doc(db, "myevents", user.uid));
-			const userEventsData = userEventsDoc.data() || {};
-			const joinedEvents = userEventsData.joined || [];
-			const likedEvents = userEventsData.liked || [];
-			const bannedEvents = userEventsData.banned || [];
-
-			setMyEvents(joinedEvents);
-			setLikedEvents(likedEvents);
-			setBannedEvents(bannedEvents);
-
-			const eventsRef = collection(db, "events");
-			const now = new Date();
-			const q = query(
-				eventsRef,
-				where("date", ">=", now.toISOString()),
-				orderBy("date")
-			);
-			const querySnapshot = await getDocs(q);
-
-			const allEvents = querySnapshot.docs
-				.map((doc) => ({ id: doc.id, ...doc.data() }))
-				.filter(
-					(eventData) =>
-						eventData.creator !== user.uid &&
-						![
-							...joinedEvents,
-							...likedEvents,
-							...bannedEvents,
-						].includes(eventData.id) &&
-						(eventData.capacity === -1 ||
-							eventData.participants.length < eventData.capacity)
-				);
-
-			let userLat, userLng;
-
-			if (
-				userData.preferences.location &&
-				userData.preferences.location !== ""
-			) {
-				const coordinates = await getCoordinates([
-					userData.preferences.location,
-				]);
-				if (coordinates && coordinates[userData.preferences.location]) {
-					userLat = coordinates[userData.preferences.location].lat;
-					userLng = coordinates[userData.preferences.location].lng;
-				} else {
-					userLat = userData.lat;
-					userLng = userData.lng;
-				}
-			} else {
-				userLat = userData.lat;
-				userLng = userData.lng;
-			}
-
-			const radius = userData.preferences.distance || 10;
-
-			const filteredEvents = [];
-
-			for (const eventData of allEvents) {
-				if (!eventData.lat || !eventData.lng) continue;
-
-				const distance = calculateDistance(
-					userLat,
-					userLng,
-					eventData.lat,
-					eventData.lng
-				);
-
-				if (distance === null || distance > radius) continue;
-
-				if (!eventMeetsUserPreferences(eventData, userData.preferences))
-					continue;
-
-				if (userData.preferences.searchByDate) {
-					const eventDate = new Date(eventData.date);
-					const startDate = userData.preferences.startDate
-						? new Date(userData.preferences.startDate)
-						: null;
-					const endDate = userData.preferences.endDate
-						? new Date(userData.preferences.endDate)
-						: null;
-
-					if (startDate && eventDate < startDate) continue;
-					if (endDate && eventDate > endDate) continue;
-				}
-
-				const creatorName = await fetchCreatorName(eventData.creator);
-				const participantImages = await fetchParticipantImages(
-					eventData.participants
-				);
-
-				const timeLeft = calculateTimeLeft(eventData.date);
-
-				filteredEvents.push({
-					...eventData,
-					creatorName,
-					distance,
-					participantImages: participantImages.filter(Boolean),
-					timeLeft,
-				});
-
-				if (filteredEvents.length >= 20) break;
-			}
-
-			setEvents(filteredEvents);
+			return newEvents;
 		} catch (err) {
-			console.error("Error fetching events:", err);
-			setError(
-				"Wystąpił błąd podczas ładowania wydarzeń. Proszę odświeżyć stronę."
-			);
-		} finally {
-			setIsLoading(false);
+			console.error("Błąd podczas pobierania wydarzeń:", err);
+			return null;
 		}
-	}, [userData]);
+	};
 
 	useEffect(() => {
 		const loadUserDataAndEvents = async () => {
@@ -201,7 +243,7 @@ export default function EventCard() {
 			try {
 				await fetchUserData();
 			} catch (err) {
-				console.error("Error loading user data:", err);
+				console.error("Błąd ładowania danych użytkownika:", err);
 				setError(
 					"Wystąpił błąd podczas ładowania danych użytkownika. Proszę odświeżyć stronę."
 				);
@@ -214,23 +256,10 @@ export default function EventCard() {
 	}, [fetchUserData]);
 
 	useEffect(() => {
-		if (userData) {
-			fetchEvents();
+		if (userData && events.length === 0) {
+			fetchEvents().then((newEvents) => setEvents(newEvents));
 		}
 	}, [userData, fetchEvents]);
-
-	useEffect(() => {
-		const timer = setInterval(() => {
-			setEvents((prevEvents) =>
-				prevEvents.map((event) => ({
-					...event,
-					timeLeft: calculateTimeLeft(event.date),
-				}))
-			);
-		}, 1000);
-
-		return () => clearInterval(timer);
-	}, []);
 
 	const updateUserEvents = async (eventId, field) => {
 		const user = auth.currentUser;
@@ -253,7 +282,6 @@ export default function EventCard() {
 	const handleJoinEvent = async (eventId) => {
 		const user = auth.currentUser;
 		if (!user) return;
-
 		try {
 			const eventRef = doc(db, "events", eventId);
 			const eventDoc = await getDoc(eventRef);
@@ -278,6 +306,8 @@ export default function EventCard() {
 
 			await updateChatParticipants(eventId, user.uid);
 
+			setMyEvents((prevMyEvents) => [...prevMyEvents, eventId]);
+
 			setNotificationEventName(eventData.eventName);
 			setNotificationType("success");
 			setShowNotification(true);
@@ -288,7 +318,7 @@ export default function EventCard() {
 				setSelectedEventId(null);
 			}
 		} catch (err) {
-			console.error("Error joining event:", err);
+			console.error("Błąd dołączenia do wydarzenia:", err);
 		}
 	};
 
@@ -347,18 +377,6 @@ export default function EventCard() {
 		},
 		[currentEventIndex]
 	);
-
-	const nextEvent = useCallback(() => {
-		if (events.length === 0) return;
-		setDirection(1);
-		setCurrentEventIndex((prevIndex) => (prevIndex + 1) % events.length);
-	}, [events.length]);
-
-	const handleSwipe = (swipeDirection) => {
-		if (swipeDirection > 0) {
-			nextEvent();
-		}
-	};
 
 	const handleSelectEvent = (eventId) => {
 		setSelectedEventId(eventId);
@@ -471,71 +489,27 @@ export default function EventCard() {
 
 			<div className="flex-grow overflow-hidden relative">
 				{eventView === "card" && !selectedEventId && (
-					<AnimatePresence initial={false} custom={direction}>
-						{events.length > 0 ? (
-							<motion.div
-								key={currentEventIndex}
-								initial={{
-									scale: 0.5, // Start smaller
-								}}
-								animate={{ scale: 1 }} // Scale to normal size
-								exit={{
-									scale: 1, // Scale down when exiting
-								}}
-								transition={{
-									type: "spring",
-									stiffness: 300,
-									damping: 30,
-								}}
-								className="h-full"
-							>
-								<CardView
-									event={events[currentEventIndex]}
-									onSwipe={handleSwipe}
-									nextEvent={nextEvent}
-									showCloseButton={false}
-									showNextButton={true}
-									onJoin={handleJoinEvent}
-									onLike={handleLikeEvent}
-									onDislike={handleDislikeEvent}
-									getTimeLeftColor={getTimeLeftColor}
-									formatTimeLeft={formatTimeLeft}
-									isRemoving={
-										events[currentEventIndex].removing
-									}
-									removeAction={
-										events[currentEventIndex].action
-									}
-								/>
-							</motion.div>
-						) : (
-							<div className="h-full flex flex-col items-center justify-center">
-								<Lottie
-									animationData={animationNotFound}
-									loop={true}
-									autoplay={true}
-									style={{ width: 200, height: 200 }}
-								/>
-								<p className="text-xl text-gray-600 text-center px-4">
-									Niestety nie mamy dla Ciebie żadnych
-									wydarzeń :(
-								</p>
-							</div>
-						)}
-					</AnimatePresence>
+					<EventCardStack
+						events={events}
+						setEvents={setEvents}
+						onJoin={handleJoinEvent}
+						onLike={handleLikeEvent}
+						onDislike={handleDislikeEvent}
+						getTimeLeftColor={getTimeLeftColor}
+						fetchNextEvent={fetchNextEvent}
+					/>
 				)}
 				{eventView === "list" && (
 					<ListView
 						events={events}
 						onSelectEvent={handleSelectEvent}
 						getTimeLeftColor={getTimeLeftColor}
-						formatTimeLeft={formatTimeLeft}
 					/>
 				)}
 				<AnimatePresence>
 					{selectedEventId && (
 						<motion.div
-							key={event.id}
+							key={selectedEventId}
 							initial={{ opacity: 0, x: 300 }}
 							animate={{ opacity: 1, x: 0 }}
 							exit={{ opacity: 0, x: -300 }}
@@ -546,16 +520,15 @@ export default function EventCard() {
 								event={events.find(
 									(event) => event.id === selectedEventId
 								)}
-								onSwipe={handleSwipe}
-								nextEvent={nextEvent}
-								onClose={closeCardView}
+								onSwipe={() => {}}
+								nextEvent={() => {}}
 								showCloseButton={true}
 								showNextButton={false}
 								onJoin={handleJoinEvent}
 								onLike={handleLikeEvent}
 								onDislike={handleDislikeEvent}
 								getTimeLeftColor={getTimeLeftColor}
-								formatTimeLeft={formatTimeLeft}
+								onClose={closeCardView}
 							/>
 						</motion.div>
 					)}

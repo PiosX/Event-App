@@ -187,7 +187,7 @@ export default function CreateEvent({ onEventCreated }) {
 			const url = await getDownloadURL(storageRef);
 			return url;
 		} catch (error) {
-			console.error("Error processing or uploading image:", error);
+			console.error("Nie udało się przetworzyć zdjęcia:", error);
 			throw error;
 		}
 	};
@@ -303,7 +303,7 @@ export default function CreateEvent({ onEventCreated }) {
 					profileImage: userData.profileImage,
 				};
 			} else {
-				console.error("User not found in users collection.");
+				console.error("Nie znaleziono użytkownika");
 				return;
 			}
 
