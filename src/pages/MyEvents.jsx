@@ -6,6 +6,7 @@ import {
 	Calendar,
 	MapPin,
 	Clock,
+	X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import {
 	getTimeLeftColor,
 	formatTimeLeft,
 } from "@/lib/event-functions";
+import CreateEvent from "./CreateEvent";
 
 export function MyEvents() {
 	const [activeTab, setActiveTab] = useState("participating");
@@ -42,6 +44,7 @@ export function MyEvents() {
 	});
 	const [loading, setLoading] = useState(true);
 	const [userData, setUserData] = useState(null);
+	const [editingEvent, setEditingEvent] = useState(null); // Added state for editing event
 	const mapping = {
 		gender: "Płeć",
 		age: "Wiek",
@@ -346,6 +349,15 @@ export function MyEvents() {
 		}
 	};
 
+	const handleCloseEdit = () => {
+		setEditingEvent(null);
+		fetchEvents();
+	}; // Added function to close the edit panel
+
+	const handleEditEvent = (event) => {
+		setEditingEvent(event);
+	};
+
 	const renderEventList = () => (
 		<div className="bg-gray-100 h-full overflow-hidden">
 			<div className="h-full overflow-y-auto p-4">
@@ -594,6 +606,18 @@ export function MyEvents() {
 												)
 										: null
 								}
+								onEdit={
+									activeTab === "created"
+										? () =>
+												handleEditEvent(
+													events[activeTab].find(
+														(event) =>
+															event.id ===
+															selectedEventId
+													)
+												)
+										: null
+								}
 								getTimeLeftColor={getTimeLeftColor}
 								formatTimeLeft={formatTimeLeft}
 								isOtherPage={true}
@@ -602,6 +626,23 @@ export function MyEvents() {
 					)}
 				</AnimatePresence>
 			</div>
+			{editingEvent && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+					<div className="bg-white rounded-lg p-4 w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
+						<button
+							onClick={handleCloseEdit}
+							className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+						>
+							<X className="w-6 h-6" />
+						</button>
+						<CreateEvent
+							eventToEdit={editingEvent}
+							onEventCreated={handleCloseEdit}
+							onCancel={handleCloseEdit}
+						/>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

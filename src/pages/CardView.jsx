@@ -36,6 +36,7 @@ export function CardView({
 	isInteractive = true,
 	onClose,
 	isOtherPage = false,
+	onEdit,
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
@@ -205,7 +206,10 @@ export function CardView({
 									)}
 							</div>
 							<div className="absolute bottom-4 right-4 z-10">
-								<MoreOptionsMenu event={event} />
+								<MoreOptionsMenu
+									event={event}
+									onEdit={onEdit}
+								/>
 							</div>
 							<div className="absolute bottom-0 left-0 right-0 p-6">
 								<h2 className="text-white text-3xl font-bold mb-2">
@@ -383,7 +387,7 @@ export function CardView({
 	);
 }
 
-function MoreOptionsMenu({ event }) {
+function MoreOptionsMenu({ event, onEdit }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [showReportForm, setShowReportForm] = useState(false);
 	const auth = getAuth();
@@ -395,8 +399,9 @@ function MoreOptionsMenu({ event }) {
 	};
 
 	const handleEdit = () => {
-		// Implement navigation to edit page
-		window.location.href = `/edit-event/${event.id}`;
+		if (onEdit) {
+			onEdit(event);
+		}
 		setIsOpen(false);
 	};
 
@@ -430,13 +435,6 @@ function MoreOptionsMenu({ event }) {
 					</div>
 				)}
 			</div>
-			{showReportForm && (
-				<ReportForm
-					eventId={event.id}
-					userId={auth.currentUser.uid}
-					onClose={() => setShowReportForm(false)}
-				/>
-			)}
 		</>
 	);
 }

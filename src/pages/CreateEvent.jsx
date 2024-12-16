@@ -152,7 +152,7 @@ const categories = [
 	"Projektowanie",
 ];
 
-export default function CreateEvent({ onEventCreated, eventToEdit }) {
+export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 	const [image, setImage] = useState(placeholder);
 	const [croppedImage, setCroppedImage] = useState(placeholder);
 	const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -173,38 +173,45 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 	const [locationError, setLocationError] = useState("");
 	const [showOverlay, setShowOverlay] = useState(false);
 	const [isEditing, setIsEditing] = useState(!!eventToEdit);
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const navigate = useNavigate();
 	const storage = getStorage();
 	const auth = getAuth();
 	const user = auth.currentUser ? auth.currentUser.uid : null;
+	const [userData, setUserData] = useState(null);
 
 	useEffect(() => {
-		const fetchEventData = async () => {
-			if (isEditing) {
-				const eventDoc = await getDoc(doc(db, "events", eventToEdit));
-				if (eventDoc.exists()) {
-					const eventData = eventDoc.data();
-					setEventName(eventData.eventName);
-					setEventDescription(eventData.eventDescription);
-					setSelectedCategories(eventData.selectedCategories);
-					setCapacity(
-						eventData.capacity === -1
-							? ""
-							: eventData.capacity.toString()
-					);
-					setIsUnlimited(eventData.capacity === -1);
-					setDate(new Date(eventData.date));
-					setTime(eventData.time);
-					setStreet(eventData.street);
-					setCity(eventData.city);
-					setRequirements(eventData.requirements);
-					setCroppedImage(eventData.image);
+		const fetchUserData = async () => {
+			if (user) {
+				const userDoc = await getDoc(doc(db, "users", user));
+				if (userDoc.exists()) {
+					setUserData(userDoc.data());
 				}
 			}
 		};
 
-		fetchEventData();
-	}, [isEditing, eventToEdit]);
+		fetchUserData();
+	}, [user]);
+
+	useEffect(() => {
+		if (eventToEdit) {
+			setEventName(eventToEdit.eventName);
+			setEventDescription(eventToEdit.eventDescription);
+			setSelectedCategories(eventToEdit.selectedCategories);
+			setCapacity(
+				eventToEdit.capacity === -1
+					? ""
+					: eventToEdit.capacity.toString()
+			);
+			setIsUnlimited(eventToEdit.capacity === -1);
+			setDate(new Date(eventToEdit.date));
+			setTime(eventToEdit.time);
+			setStreet(eventToEdit.street);
+			setCity(eventToEdit.city);
+			setRequirements(eventToEdit.requirements || {});
+			setCroppedImage(eventToEdit.image);
+		}
+	}, [eventToEdit]);
 
 	const uploadImage = async (imageDataUrl) => {
 		try {
@@ -309,13 +316,10 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
-		if (!user) {
-			return;
-		}
+		if (!user) return;
+		if (ageError) return;
 
-		if (ageError) {
-			return;
-		}
+		setIsSubmitting(true);
 
 		try {
 			let imageUrl = croppedImage;
@@ -331,28 +335,29 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 				setLocationError(
 					"Nie udało się ustalić lokalizacji wydarzenia. Sprawdź wpisany adres i spróbuj ponownie"
 				);
+				setIsSubmitting(false);
 				return;
 			}
 
 			const eventData = {
-				eventName: eventName.trim().replace(/\s+$/, " "),
-				eventDescription: eventDescription.trim().replace(/\s+$/, " "),
+				eventName: eventName.trim(),
+				eventDescription: eventDescription.trim(),
 				selectedCategories,
 				capacity: isUnlimited ? -1 : parseInt(capacity, 10),
 				date: date.toISOString(),
 				time,
-				street: street.trim().replace(/\s+$/, " "),
-				city: city.trim().replace(/\s+$/, " "),
+				street: street.trim(),
+				city: city.trim(),
 				lat,
 				lng,
 				requirements,
 				image: imageUrl,
-				creator: user,
 			};
 
 			if (isEditing) {
 				await updateDoc(doc(db, "events", eventToEdit.id), eventData);
 			} else {
+				eventData.creator = user;
 				eventData.participants = [user];
 				eventData.disliked = 0;
 				eventData.liked = 0;
@@ -364,12 +369,19 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 				);
 
 				const chatData = {
-					participants: [participantData],
+					participants: [
+						{
+							id: user,
+							name: userData.name,
+							profileImage: userData.profileImage,
+						},
+					],
 					messages: [],
 				};
 				await setDoc(doc(db, "chats", eventRef.id), chatData);
 			}
 
+			setIsSubmitting(false);
 			setShowOverlay(true);
 			if (onEventCreated) {
 				onEventCreated(eventData);
@@ -379,6 +391,7 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 			setLocationError(
 				"Wystąpił błąd podczas tworzenia wydarzenia. Spróbuj ponownie."
 			);
+			setIsSubmitting(false);
 		}
 	};
 
@@ -394,12 +407,19 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 		<>
 			<form
 				onSubmit={handleSubmit}
-				className="flex flex-col items-center justify-start min-h-screen bg-background"
+				className="flex flex-col items-center justify-start min-h-screen bg-background relative"
 			>
+				<button
+					type="button"
+					onClick={onCancel}
+					className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+				>
+					<X className="w-6 h-6" />
+				</button>
 				<div className="w-full max-w-md p-4 space-y-4 overflow-y-auto h-[calc(100vh-4rem)]">
 					<h1 className="text-2xl font-bold mb-6 text-center">
 						{isEditing
-							? "Edytuj wydarzenie"
+							? "Aktualizuj wydarzenie"
 							: "Utwórz nowe wydarzenie"}
 					</h1>
 
@@ -733,13 +753,47 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 							{locationError}
 						</div>
 					)}
-					<p className="text-sm text-gray-500 mt-4">
-						Wydarzenie zostanie automatycznie usunięte po 7 dniach
-						od zakończenia wydarzenia.
-					</p>
-					<Button type="submit" className="w-full mt-6">
-						{isEditing ? "Zapisz zmiany" : "Utwórz wydarzenie"}
-					</Button>
+					<div className="flex gap-4 mt-6">
+						<Button
+							type="submit"
+							className="w-full"
+							disabled={isSubmitting}
+						>
+							{isSubmitting ? (
+								<>
+									<span className="mr-2">
+										{isEditing
+											? "Aktualizowanie..."
+											: "Tworzenie..."}
+									</span>
+									<svg
+										className="animate-spin h-5 w-5 text-white"
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+									>
+										<circle
+											className="opacity-25"
+											cx="12"
+											cy="12"
+											r="10"
+											stroke="currentColor"
+											strokeWidth="4"
+										></circle>
+										<path
+											className="opacity-75"
+											fill="currentColor"
+											d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+										></path>
+									</svg>
+								</>
+							) : isEditing ? (
+								"Aktualizuj wydarzenie"
+							) : (
+								"Utwórz wydarzenie"
+							)}
+						</Button>
+					</div>
 				</div>
 			</form>
 			{showOverlay && (
@@ -768,7 +822,8 @@ export default function CreateEvent({ onEventCreated, eventToEdit }) {
 						exit={{ y: 20, opacity: 0 }}
 						className="text-2xl font-bold text-gray-800 mb-8"
 					>
-						Wydarzenie zostało utworzone!
+						Wydarzenie zostało{" "}
+						{isEditing ? "zaktualizowane" : "utworzone"}!
 					</motion.h2>
 					<motion.div
 						initial={{ y: 20, opacity: 0 }}

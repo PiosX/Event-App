@@ -213,6 +213,20 @@ function App() {
 							)
 						}
 					/>
+					<Route
+						path="/edit-event/:eventId"
+						element={
+							user ? (
+								user && userExists ? (
+									<CreateEvent />
+								) : (
+									<UserCreator />
+								)
+							) : (
+								<Navigate to="/" />
+							)
+						}
+					/>
 				</Route>
 			</Routes>
 		</Router>
