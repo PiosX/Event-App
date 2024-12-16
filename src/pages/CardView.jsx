@@ -12,12 +12,16 @@ import {
 	ArrowLeft,
 	Clock,
 	Check,
+	MoreVertical,
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { calculateTimeLeft, formatTimeLeft } from "@/lib/event-functions";
+import { useLocation } from "react-router-dom";
+import { getAuth } from "firebase/auth";
+import ReportForm from "./ReportForm";
 
 export function CardView({
 	event,
@@ -31,6 +35,7 @@ export function CardView({
 	getTimeLeftColor,
 	isInteractive = true,
 	onClose,
+	isOtherPage = false,
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
@@ -48,13 +53,13 @@ export function CardView({
 	}, []);
 
 	const handleTouchStart = (e) => {
-		if (!isInteractive) return;
+		if (!isInteractive || isOtherPage) return;
 		setTouchEnd(null);
 		setTouchStart(e.targetTouches[0].clientX);
 	};
 
 	const handleTouchMove = (e) => {
-		if (!isInteractive) return;
+		if (!isInteractive || isOtherPage) return;
 		setTouchEnd(e.targetTouches[0].clientX);
 		const distance = touchStart - e.targetTouches[0].clientX;
 		if (Math.abs(distance) > 50) {
@@ -97,7 +102,7 @@ export function CardView({
 	};
 
 	const handleTouchEnd = async () => {
-		if (!isInteractive || !touchStart || !touchEnd) return;
+		if (!isInteractive || !touchStart || !touchEnd || isOtherPage) return;
 		const distance = touchStart - touchEnd;
 		const isLeftSwipe = distance > 100;
 		const isRightSwipe = distance < -100;
@@ -198,6 +203,9 @@ export function CardView({
 											{event.distance.toFixed(1)} km
 										</div>
 									)}
+							</div>
+							<div className="absolute bottom-4 right-4 z-10">
+								<MoreOptionsMenu event={event} />
 							</div>
 							<div className="absolute bottom-0 left-0 right-0 p-6">
 								<h2 className="text-white text-3xl font-bold mb-2">
@@ -372,5 +380,63 @@ export function CardView({
 				</div>
 			)}
 		</motion.div>
+	);
+}
+
+function MoreOptionsMenu({ event }) {
+	const [isOpen, setIsOpen] = useState(false);
+	const [showReportForm, setShowReportForm] = useState(false);
+	const auth = getAuth();
+	const currentUser = auth.currentUser;
+
+	const handleReport = () => {
+		setShowReportForm(true);
+		setIsOpen(false);
+	};
+
+	const handleEdit = () => {
+		// Implement navigation to edit page
+		window.location.href = `/edit-event/${event.id}`;
+		setIsOpen(false);
+	};
+
+	return (
+		<>
+			<div className="relative">
+				<button
+					onClick={() => setIsOpen(!isOpen)}
+					className="bg-white/20 backdrop-blur-sm text-white p-2 rounded-full"
+				>
+					<MoreVertical className="w-6 h-6" />
+				</button>
+				{isOpen && (
+					<div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+						{currentUser && event.creator !== currentUser.uid && (
+							<button
+								onClick={handleReport}
+								className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+							>
+								Zgłoś
+							</button>
+						)}
+						{currentUser && event.creator === currentUser.uid && (
+							<button
+								onClick={handleEdit}
+								className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+							>
+								Edytuj
+							</button>
+						)}
+					</div>
+				)}
+			</div>
+			{showReportForm && (
+				<ReportForm
+					eventId={event.id}
+					userId={auth.currentUser.uid}
+					onClose={() => setShowReportForm(false)}
+				/>
+			)}
+		</>
 	);
 }

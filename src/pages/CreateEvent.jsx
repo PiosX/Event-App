@@ -30,9 +30,11 @@ import {
 	addDoc,
 	setDoc,
 	doc,
+	getDoc,
 	query,
 	where,
 	getDocs,
+	updateDoc,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -150,7 +152,7 @@ const categories = [
 	"Projektowanie",
 ];
 
-export default function CreateEvent({ onEventCreated }) {
+export default function CreateEvent({ onEventCreated, eventToEdit }) {
 	const [image, setImage] = useState(placeholder);
 	const [croppedImage, setCroppedImage] = useState(placeholder);
 	const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -170,10 +172,39 @@ export default function CreateEvent({ onEventCreated }) {
 	const [ageError, setAgeError] = useState("");
 	const [locationError, setLocationError] = useState("");
 	const [showOverlay, setShowOverlay] = useState(false);
+	const [isEditing, setIsEditing] = useState(!!eventToEdit);
 	const navigate = useNavigate();
 	const storage = getStorage();
 	const auth = getAuth();
 	const user = auth.currentUser ? auth.currentUser.uid : null;
+
+	useEffect(() => {
+		const fetchEventData = async () => {
+			if (isEditing) {
+				const eventDoc = await getDoc(doc(db, "events", eventToEdit));
+				if (eventDoc.exists()) {
+					const eventData = eventDoc.data();
+					setEventName(eventData.eventName);
+					setEventDescription(eventData.eventDescription);
+					setSelectedCategories(eventData.selectedCategories);
+					setCapacity(
+						eventData.capacity === -1
+							? ""
+							: eventData.capacity.toString()
+					);
+					setIsUnlimited(eventData.capacity === -1);
+					setDate(new Date(eventData.date));
+					setTime(eventData.time);
+					setStreet(eventData.street);
+					setCity(eventData.city);
+					setRequirements(eventData.requirements);
+					setCroppedImage(eventData.image);
+				}
+			}
+		};
+
+		fetchEventData();
+	}, [isEditing, eventToEdit]);
 
 	const uploadImage = async (imageDataUrl) => {
 		try {
@@ -287,24 +318,9 @@ export default function CreateEvent({ onEventCreated }) {
 		}
 
 		try {
-			const imageUrl = await uploadImage(croppedImage);
-
-			const usersRef = collection(db, "users");
-			const userQuery = query(usersRef, where("uid", "==", user));
-			const userDocs = await getDocs(userQuery);
-
-			let participantData;
-			if (!userDocs.empty) {
-				const userDoc = userDocs.docs[0];
-				const userData = userDoc.data();
-				participantData = {
-					id: user,
-					name: userData.name,
-					profileImage: userData.profileImage,
-				};
-			} else {
-				console.error("Nie znaleziono użytkownika");
-				return;
+			let imageUrl = croppedImage;
+			if (croppedImage !== eventToEdit?.image) {
+				imageUrl = await uploadImage(croppedImage);
 			}
 
 			const address = `${street}, ${city}`;
@@ -332,19 +348,27 @@ export default function CreateEvent({ onEventCreated }) {
 				requirements,
 				image: imageUrl,
 				creator: user,
-				participants: [user],
-				disliked: 0,
-				liked: 0,
-				reported: 0,
 			};
 
-			const eventRef = await addDoc(collection(db, "events"), eventData);
+			if (isEditing) {
+				await updateDoc(doc(db, "events", eventToEdit.id), eventData);
+			} else {
+				eventData.participants = [user];
+				eventData.disliked = 0;
+				eventData.liked = 0;
+				eventData.reported = 0;
 
-			const chatData = {
-				participants: [participantData],
-				messages: [],
-			};
-			await setDoc(doc(db, "chats", eventRef.id), chatData);
+				const eventRef = await addDoc(
+					collection(db, "events"),
+					eventData
+				);
+
+				const chatData = {
+					participants: [participantData],
+					messages: [],
+				};
+				await setDoc(doc(db, "chats", eventRef.id), chatData);
+			}
 
 			setShowOverlay(true);
 			if (onEventCreated) {
@@ -374,7 +398,9 @@ export default function CreateEvent({ onEventCreated }) {
 			>
 				<div className="w-full max-w-md p-4 space-y-4 overflow-y-auto h-[calc(100vh-4rem)]">
 					<h1 className="text-2xl font-bold mb-6 text-center">
-						Utwórz nowe wydarzenie
+						{isEditing
+							? "Edytuj wydarzenie"
+							: "Utwórz nowe wydarzenie"}
 					</h1>
 
 					<div className="flex flex-col items-center space-y-2">
@@ -707,8 +733,12 @@ export default function CreateEvent({ onEventCreated }) {
 							{locationError}
 						</div>
 					)}
+					<p className="text-sm text-gray-500 mt-4">
+						Wydarzenie zostanie automatycznie usunięte po 7 dniach
+						od zakończenia wydarzenia.
+					</p>
 					<Button type="submit" className="w-full mt-6">
-						Utwórz wydarzenie
+						{isEditing ? "Zapisz zmiany" : "Utwórz wydarzenie"}
 					</Button>
 				</div>
 			</form>

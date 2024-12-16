@@ -512,7 +512,10 @@ export function MyEvents() {
 									? "default"
 									: "ghost"
 							}
-							onClick={() => setActiveTab("participating")}
+							onClick={() => {
+								setActiveTab("participating");
+								handleCloseCardView();
+							}}
 							className="flex items-center space-x-1 flex-shrink-0 text-xs sm:text-sm"
 						>
 							<UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -525,7 +528,10 @@ export function MyEvents() {
 							variant={
 								activeTab === "liked" ? "default" : "ghost"
 							}
-							onClick={() => setActiveTab("liked")}
+							onClick={() => {
+								setActiveTab("liked");
+								handleCloseCardView();
+							}}
 							className="flex items-center space-x-1 flex-shrink-0 text-xs sm:text-sm"
 						>
 							<Heart className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -535,7 +541,10 @@ export function MyEvents() {
 							variant={
 								activeTab === "created" ? "default" : "ghost"
 							}
-							onClick={() => setActiveTab("created")}
+							onClick={() => {
+								setActiveTab("created");
+								handleCloseCardView();
+							}}
 							className="flex items-center space-x-1 flex-shrink-0 text-xs sm:text-sm"
 						>
 							<PlusCircle className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -587,6 +596,7 @@ export function MyEvents() {
 								}
 								getTimeLeftColor={getTimeLeftColor}
 								formatTimeLeft={formatTimeLeft}
+								isOtherPage={true}
 							/>
 						</motion.div>
 					)}
