@@ -37,7 +37,13 @@ import {
 	updateDoc,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+	getStorage,
+	ref,
+	uploadBytes,
+	getDownloadURL,
+	deleteObject,
+} from "firebase/storage";
 import { processImage } from "@/lib/process-image";
 import { getCoordinates } from "@/lib/event-functions";
 import animationData from "../assets/animation-createdEvent.json";
@@ -215,15 +221,36 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 
 	const uploadImage = async (imageDataUrl) => {
 		try {
-			const processedImageBlob = await processImage(
-				imageDataUrl,
-				1920,
-				1080
-			);
-			const storageRef = ref(storage, `images/${Date.now()}.webp`);
-			await uploadBytes(storageRef, processedImageBlob);
-			const url = await getDownloadURL(storageRef);
-			return url;
+			let imageUrl = eventToEdit?.image;
+			if (imageDataUrl !== eventToEdit?.image) {
+				const storage = getStorage();
+
+				if (eventToEdit?.image) {
+					try {
+						const oldImagePath = eventToEdit.image
+							.split("?")[0]
+							.split("/o/")[1]
+							.replace("%2F", "/");
+						const oldImageRef = ref(storage, oldImagePath);
+						await deleteObject(oldImageRef);
+					} catch (deleteError) {
+						console.warn(
+							"Nie udało się usunąć starego zdjęcia:",
+							deleteError
+						);
+					}
+				}
+
+				const processedImageBlob = await processImage(
+					imageDataUrl,
+					1920,
+					1080
+				);
+				const storageRef = ref(storage, `images/${Date.now()}.webp`);
+				await uploadBytes(storageRef, processedImageBlob);
+				imageUrl = await getDownloadURL(storageRef);
+			}
+			return imageUrl;
 		} catch (error) {
 			console.error("Nie udało się przetworzyć zdjęcia:", error);
 			throw error;
