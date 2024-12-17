@@ -49,6 +49,8 @@ import { getCoordinates } from "@/lib/event-functions";
 import animationData from "../assets/animation-createdEvent.json";
 import Lottie from "lottie-react";
 import { motion } from "framer-motion";
+import { isToday } from "date-fns";
+import { getCurrentTime } from "@/lib/event-functions";
 
 const categories = [
 	"Podróże",
@@ -354,18 +356,6 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				imageUrl = await uploadImage(croppedImage);
 			}
 
-			const address = `${street}, ${city}`;
-			const coordinates = await getCoordinates([address]);
-			const { lat, lng } = coordinates[address] || {};
-
-			if (!lat || !lng) {
-				setLocationError(
-					"Nie udało się ustalić lokalizacji wydarzenia. Sprawdź wpisany adres i spróbuj ponownie"
-				);
-				setIsSubmitting(false);
-				return;
-			}
-
 			const eventData = {
 				eventName: eventName.trim(),
 				eventDescription: eventDescription.trim(),
@@ -373,17 +363,51 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				capacity: isUnlimited ? -1 : parseInt(capacity, 10),
 				date: date.toISOString(),
 				time,
-				street: street.trim(),
-				city: city.trim(),
-				lat,
-				lng,
 				requirements,
 				image: imageUrl,
 			};
 
 			if (isEditing) {
+				if (
+					street !== eventToEdit.street ||
+					city !== eventToEdit.city
+				) {
+					const address = `${street}, ${city}`;
+					const coordinates = await getCoordinates([address]);
+					const { lat, lng } = coordinates[address] || {};
+
+					if (!lat || !lng) {
+						setLocationError(
+							"Nie udało się ustalić lokalizacji wydarzenia. Sprawdź wpisany adres i spróbuj ponownie"
+						);
+						setIsSubmitting(false);
+						return;
+					}
+
+					eventData.street = street.trim();
+					eventData.city = city.trim();
+					eventData.lat = lat;
+					eventData.lng = lng;
+				}
+
 				await updateDoc(doc(db, "events", eventToEdit.id), eventData);
 			} else {
+				const address = `${street}, ${city}`;
+				const coordinates = await getCoordinates([address]);
+				const { lat, lng } = coordinates[address] || {};
+
+				if (!lat || !lng) {
+					setLocationError(
+						"Nie udało się ustalić lokalizacji wydarzenia. Sprawdź wpisany adres i spróbuj ponownie"
+					);
+					setIsSubmitting(false);
+					return;
+				}
+
+				eventData.street = street.trim();
+				eventData.city = city.trim();
+				eventData.lat = lat;
+				eventData.lng = lng;
 				eventData.creator = user;
 				eventData.participants = [user];
 				eventData.disliked = 0;
@@ -554,6 +578,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								id="capacity"
 								type="number"
 								min="2"
+								max="100000"
 								placeholder="Wprowadź liczbę miejsc"
 								value={isUnlimited ? "" : capacity}
 								onChange={(e) => setCapacity(e.target.value)}
@@ -595,6 +620,9 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								value={time}
 								onChange={(e) => setTime(e.target.value)}
 								className="w-24 focus:ring-black focus:border-black"
+								min={
+									isToday(date) ? getCurrentTime() : undefined
+								}
 								required
 							/>
 						</div>
@@ -660,6 +688,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 										placeholder="Min wiek"
 										type="number"
 										min="1"
+										max="100"
 										value={
 											requirements.age?.split("-")[0] ||
 											""
@@ -692,6 +721,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 										placeholder="Max wiek"
 										type="number"
 										min="1"
+										max="100"
 										value={
 											requirements.age?.split("-")[1] ||
 											""

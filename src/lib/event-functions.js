@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import {
 	collection,
 	query,
@@ -263,4 +264,21 @@ export const formatTimeLeft = (timeLeft) => {
 	return `${String(timeLeft.hours).padStart(2, "0")}:${String(
 		timeLeft.minutes
 	).padStart(2, "0")}:${String(timeLeft.seconds).padStart(2, "0")}`;
+};
+
+export const getCurrentTime = () => {
+	const now = new Date();
+	const minutes = now.getMinutes();
+	const roundedMinutes = Math.round(minutes / 10) * 10;
+
+	now.setMinutes(roundedMinutes);
+	now.setSeconds(0);
+	now.setMilliseconds(0);
+
+	if (roundedMinutes === 60) {
+		now.setMinutes(0);
+		now.setHours(now.getHours() + 1);
+	}
+
+	return format(now, "HH:mm");
 };

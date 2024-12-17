@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CardView } from "./CardView";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns";
 import { pl } from "date-fns/locale";
 import { db, auth } from "../firebaseConfig";
 import {
@@ -34,6 +34,21 @@ import {
 	formatTimeLeft,
 } from "@/lib/event-functions";
 import CreateEvent from "./CreateEvent";
+import { getCurrentTime } from "@/lib/event-functions";
+
+const handleTimeChange = async (eventId, newTime) => {
+	try {
+		await updateDoc(doc(db, "events", eventId), { time: newTime });
+		setEvents((prevEvents) => ({
+			...prevEvents,
+			[activeTab]: prevEvents[activeTab].map((event) =>
+				event.id === eventId ? { ...event, time: newTime } : event
+			),
+		}));
+	} catch (error) {
+		console.error("Error updating time:", error);
+	}
+};
 
 export function MyEvents() {
 	const [activeTab, setActiveTab] = useState("participating");
@@ -450,7 +465,7 @@ export function MyEvents() {
 										</p>
 										<div className="flex items-center mb-2">
 											<Calendar className="w-5 h-5 mr-2 text-gray-500" />
-											{/* <span className="font-semibold">
+											<span className="font-semibold">
 												{format(
 													new Date(event.date),
 													"dd MMMM yyyy",
@@ -459,14 +474,24 @@ export function MyEvents() {
 													}
 												)}{" "}
 												o {event.time}
-											</span> */}
+											</span>
 											<Input
 												type="time"
 												value={event.time}
-												// onChange={(e) =>
-												// 	setTime(e.target.value)
-												// }
+												onChange={(e) =>
+													handleTimeChange(
+														event.id,
+														e.target.value
+													)
+												}
 												className="w-24 focus:ring-black focus:border-black"
+												min={
+													isToday(
+														new Date(event.date)
+													)
+														? getCurrentTime()
+														: undefined
+												}
 												required
 											/>
 										</div>
