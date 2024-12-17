@@ -436,14 +436,20 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				onSubmit={handleSubmit}
 				className="flex flex-col items-center justify-start min-h-screen bg-background relative"
 			>
-				<button
-					type="button"
-					onClick={onCancel}
-					className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+				<div
+					className={`relative w-full max-w-md p-4 space-y-4 overflow-y-auto  ${
+						isEditing ? "h-100vh" : "h-[calc(100vh-4rem)]"
+					}`}
 				>
-					<X className="w-6 h-6" />
-				</button>
-				<div className="w-full max-w-md p-4 space-y-4 overflow-y-auto h-[calc(100vh-4rem)]">
+					{isEditing && (
+						<button
+							type="button"
+							onClick={onCancel}
+							className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+						>
+							<X className="w-6 h-6" />
+						</button>
+					)}
 					<h1 className="text-2xl font-bold mb-6 text-center">
 						{isEditing
 							? "Aktualizuj wydarzenie"

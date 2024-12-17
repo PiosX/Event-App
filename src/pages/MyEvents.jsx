@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { CardView } from "./CardView";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -449,7 +450,7 @@ export function MyEvents() {
 										</p>
 										<div className="flex items-center mb-2">
 											<Calendar className="w-5 h-5 mr-2 text-gray-500" />
-											<span className="font-semibold">
+											{/* <span className="font-semibold">
 												{format(
 													new Date(event.date),
 													"dd MMMM yyyy",
@@ -458,7 +459,16 @@ export function MyEvents() {
 													}
 												)}{" "}
 												o {event.time}
-											</span>
+											</span> */}
+											<Input
+												type="time"
+												value={event.time}
+												// onChange={(e) =>
+												// 	setTime(e.target.value)
+												// }
+												className="w-24 focus:ring-black focus:border-black"
+												required
+											/>
 										</div>
 										<div className="flex items-center mb-4">
 											<MapPin className="w-5 h-5 mr-2 text-gray-500" />
@@ -516,7 +526,7 @@ export function MyEvents() {
 	return (
 		<div className="h-full bg-gray-100 flex flex-col">
 			<div className="bg-white shadow z-10">
-				<div className="container mx-auto px-2 sm:px-4 py-2 flex items-center justify-between h-14 overflow-x-auto">
+				<div className="container mx-auto px-2 sm:px-4 py-2 flex items-center justify-center h-14 overflow-x-auto">
 					<div className="flex items-center space-x-2 justify-center sm:space-x-4 min-w-full sm:min-w-0">
 						<Button
 							variant={
