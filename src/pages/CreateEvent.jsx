@@ -612,7 +612,12 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 									locale={pl}
 									className="rounded-md border"
 									required
-									disabled={(date) => date < new Date()}
+									disabled={(date) => {
+										if (isToday(date)) {
+											return false;
+										}
+										return date < new Date();
+									}}
 								/>
 							</div>
 							<Input

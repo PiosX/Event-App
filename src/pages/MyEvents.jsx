@@ -34,7 +34,6 @@ import {
 	formatTimeLeft,
 } from "@/lib/event-functions";
 import CreateEvent from "./CreateEvent";
-import { getCurrentTime } from "@/lib/event-functions";
 
 const handleTimeChange = async (eventId, newTime) => {
 	try {
@@ -475,25 +474,6 @@ export function MyEvents() {
 												)}{" "}
 												o {event.time}
 											</span>
-											<Input
-												type="time"
-												value={event.time}
-												onChange={(e) =>
-													handleTimeChange(
-														event.id,
-														e.target.value
-													)
-												}
-												className="w-24 focus:ring-black focus:border-black"
-												min={
-													isToday(
-														new Date(event.date)
-													)
-														? getCurrentTime()
-														: undefined
-												}
-												required
-											/>
 										</div>
 										<div className="flex items-center mb-4">
 											<MapPin className="w-5 h-5 mr-2 text-gray-500" />
@@ -656,6 +636,7 @@ export function MyEvents() {
 								getTimeLeftColor={getTimeLeftColor}
 								formatTimeLeft={formatTimeLeft}
 								isOtherPage={true}
+								forceEnableToday={true}
 							/>
 						</motion.div>
 					)}

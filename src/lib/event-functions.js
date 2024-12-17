@@ -269,16 +269,14 @@ export const formatTimeLeft = (timeLeft) => {
 export const getCurrentTime = () => {
 	const now = new Date();
 	const minutes = now.getMinutes();
+
 	const roundedMinutes = Math.round(minutes / 10) * 10;
 
 	now.setMinutes(roundedMinutes);
 	now.setSeconds(0);
 	now.setMilliseconds(0);
 
-	if (roundedMinutes === 60) {
-		now.setMinutes(0);
-		now.setHours(now.getHours() + 1);
-	}
+	now.setHours(now.getHours() + 1);
 
 	return format(now, "HH:mm");
 };
