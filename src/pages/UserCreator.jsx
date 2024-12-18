@@ -175,14 +175,13 @@ export default function UserCreator() {
 	const auth = getAuth();
 	const user = auth.currentUser ? auth.currentUser.uid : null;
 	const defaultProfileImage =
-		"https://firebasestorage.googleapis.com/v0/b/eventapp-1b046.appspot.com/o/static%2F1731795031624.webp?alt=media&token=23aed4ef-38ac-41a9-a3dc-8b3ccbf39392";
+		"https://firebasestorage.googleapis.com/v0/b/eventapp-1b046.appspot.com/o/static%2F1734554796895.webp?alt=media&token=124a6eed-de5c-4413-bd0b-154ef21bb933";
 
 	useEffect(() => {
 		checkLocationPermission();
 	}, []);
 
 	const checkLocationPermission = () => {
-		//zastepczna funkcja
 		if ("geolocation" in navigator) {
 			navigator.permissions
 				.query({ name: "geolocation" })
@@ -217,9 +216,10 @@ export default function UserCreator() {
 			fetchUserLocation();
 		} catch (error) {
 			console.error("Błąd lokalizacji:", error);
+			setLocationPermissionGranted(false);
 			if (error.code === 1) {
 				setLocationError(
-					"Odmówiono dostępu do lokalizacji. Aby korzystać z funkcji lokalizacji, zmień ustawienia przeglądarki i spróbuj ponownie."
+					"Odmówiono dostępu do lokalizacji. Aby włączyć lokalizację, przejdź do ustawień telefonu i włącz usługi lokalizacyjne."
 				);
 			} else {
 				setLocationError(
@@ -230,14 +230,16 @@ export default function UserCreator() {
 	};
 
 	const fetchUserLocation = async () => {
-		const location = await getUserLocation();
-		if (location) {
-			setUserLocation(location);
-			setFormData((prevData) => ({
-				...prevData,
-				street: location.street,
-				city: location.city,
-			}));
+		if (locationPermissionGranted) {
+			const location = await getUserLocation();
+			if (location) {
+				setUserLocation(location);
+				setFormData((prevData) => ({
+					...prevData,
+					street: location.street,
+					city: location.city,
+				}));
+			}
 		}
 	};
 
@@ -352,9 +354,11 @@ export default function UserCreator() {
 				!formData.name ||
 				!formData.age ||
 				!formData.gender ||
-				!formData.description
+				!formData.description ||
+				(!locationPermissionGranted &&
+					(!formData.city || !formData.street))
 			) {
-				setError("Proszę wypełnić wszystkie pola dla osoby.");
+				setError("Proszę wypełnić wszystkie wymagane pola dla osoby.");
 				setIsSubmitting(false);
 				return;
 			}
@@ -379,7 +383,17 @@ export default function UserCreator() {
 		setError("");
 
 		let coords = null;
-		if (activeTab === "organization") {
+		if (activeTab === "person" && !locationPermissionGranted) {
+			const address = `${formData.street}, ${formData.city}`;
+			coords = await fetchCoordinates(address);
+			if (!coords) {
+				setError(
+					"Nie udało się ustalić lokalizacji. Sprawdź wpisany adres i spróbuj ponownie"
+				);
+				setIsSubmitting(false);
+				return;
+			}
+		} else if (activeTab === "organization") {
 			const address = `${formData.street}, ${formData.city}`;
 			coords = await fetchCoordinates(address);
 			if (!coords) {
@@ -410,11 +424,19 @@ export default function UserCreator() {
 		};
 
 		if (activeTab === "person") {
-			userData = {
-				...userData,
-				lat: userLocation?.lat,
-				lng: userLocation?.lng,
-			};
+			if (locationPermissionGranted) {
+				userData = {
+					...userData,
+					lat: userLocation?.lat,
+					lng: userLocation?.lng,
+				};
+			} else {
+				userData = {
+					...userData,
+					lat: coords.lat,
+					lng: coords.lng,
+				};
+			}
 		} else if (activeTab === "organization") {
 			userData = {
 				...userData,
@@ -516,6 +538,7 @@ export default function UserCreator() {
 								name="age"
 								type="number"
 								placeholder="Wprowadź wiek"
+								max="100"
 								value={formData.age}
 								onChange={handleInputChange}
 								required
@@ -549,6 +572,36 @@ export default function UserCreator() {
 									</SelectItem>
 								</SelectContent>
 							</Select>
+						</div>
+						<div
+							className={`space-y-2 ${
+								locationPermissionGranted ? "hidden" : ""
+							}`}
+						>
+							<Label htmlFor="city">Miejscowość</Label>
+							<Input
+								id="city"
+								name="city"
+								placeholder="Wprowadź miejscowość"
+								value={formData.city}
+								onChange={handleInputChange}
+								required={!locationPermissionGranted}
+							/>
+						</div>
+						<div
+							className={`space-y-2 ${
+								locationPermissionGranted ? "hidden" : ""
+							}`}
+						>
+							<Label htmlFor="street">Ulica</Label>
+							<Input
+								id="street"
+								name="street"
+								placeholder="Wprowadź ulicę"
+								value={formData.street}
+								onChange={handleInputChange}
+								required={!locationPermissionGranted}
+							/>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="description">
@@ -849,13 +902,11 @@ export default function UserCreator() {
 								Gdzie jesteś?
 							</h2>
 							<p className="text-center mb-8">
-								Aby w pełni wykorzystać możliwości aplikacji,
-								potrzebujemy dostępu do Twojej lokalizacji.
-								Dzięki temu możemy precyzyjnie dopasowywać
-								wydarzenia w Twojej okolicy, zapewniając Ci jak
-								najlepsze doświadczenie. Po rejestracji możesz
-								wyłączyć udostępnianie lokalizacji, jednak
-								wówczas nie będziemy mogli jej aktualizować.
+								Dzięki Twojej lokalizacji możemy precyzyjnie
+								dopasowywać wydarzenia w Twojej okolicy,
+								zapewniając Ci jak najlepsze doświadczenie.
+								Jeśli nie wyrazisz zgody, będziesz musiał
+								ręcznie wprowadzić swoją lokalizację.
 							</p>
 							{locationError && (
 								<p className="text-red-500 text-center mb-4">
@@ -863,12 +914,24 @@ export default function UserCreator() {
 								</p>
 							)}
 						</div>
-						<Button
-							onClick={handleEnableLocation}
-							className="rounded-full px-12 py-6 text-lg"
-						>
-							Włącz lokalizację
-						</Button>
+						<div className="flex flex-col items-center gap-4">
+							<Button
+								onClick={handleEnableLocation}
+								className="rounded-full px-12 py-6 text-lg"
+							>
+								Włącz lokalizację
+							</Button>
+							<Button
+								onClick={() => {
+									setLocationPermissionGranted(false);
+									setShowLocationPopup(false);
+								}}
+								variant="outline"
+								className="rounded-full px-12 py-6 text-lg"
+							>
+								Nie udzielam zgody
+							</Button>
+						</div>
 					</motion.div>
 				)}
 			</AnimatePresence>

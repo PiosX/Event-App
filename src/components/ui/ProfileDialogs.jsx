@@ -121,13 +121,17 @@ export default function ProfileDialogs({ isSettingsOpen, setIsSettingsOpen }) {
 			}
 
 			if (userData?.profileImage) {
-				const storage = getStorage();
-				const imagePath = userData.profileImage
-					.split("?")[0]
-					.split("/o/")[1]
-					.replace("%2F", "/");
-				const imageRef = ref(storage, imagePath);
-				await deleteObject(imageRef);
+				const staticImageUrl =
+					"https://firebasestorage.googleapis.com/v0/b/eventapp-1b046.appspot.com/o/static%2F1734554796895.webp?alt=media&token=124a6eed-de5c-4413-bd0b-154ef21bb933";
+				if (userData.profileImage !== staticImageUrl) {
+					const storage = getStorage();
+					const imagePath = userData.profileImage
+						.split("?")[0]
+						.split("/o/")[1]
+						.replace("%2F", "/");
+					const imageRef = ref(storage, imagePath);
+					await deleteObject(imageRef);
+				}
 			}
 
 			await deleteUser(user);
