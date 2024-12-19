@@ -49,8 +49,9 @@ import { getCoordinates } from "@/lib/event-functions";
 import animationData from "../assets/animation-createdEvent.json";
 import Lottie from "lottie-react";
 import { motion } from "framer-motion";
-import { isToday } from "date-fns";
+import { isToday, addHours, isBefore, isAfter, parseISO } from "date-fns";
 import { getCurrentTime } from "@/lib/event-functions";
+import SingleRowCalendar from "@/components/ui/SingleRowCalendar";
 
 const categories = [
 	"Podróże",
@@ -182,6 +183,9 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 	const [showOverlay, setShowOverlay] = useState(false);
 	const [isEditing, setIsEditing] = useState(!!eventToEdit);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [allowLateJoin, setAllowLateJoin] = useState(false);
+	const [lateJoinDate, setLateJoinDate] = useState(new Date());
+	const [lateJoinTime, setLateJoinTime] = useState("");
 	const navigate = useNavigate();
 	const storage = getStorage();
 	const auth = getAuth();
@@ -218,6 +222,13 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			setCity(eventToEdit.city);
 			setRequirements(eventToEdit.requirements || {});
 			setCroppedImage(eventToEdit.image);
+			setAllowLateJoin(eventToEdit.allowLateJoin);
+			setLateJoinDate(
+				eventToEdit.lateJoinDate
+					? new Date(eventToEdit.lateJoinDate)
+					: new Date()
+			);
+			setLateJoinTime(eventToEdit.lateJoinTime || "");
 		}
 	}, [eventToEdit]);
 
@@ -365,6 +376,9 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				time,
 				requirements,
 				image: imageUrl,
+				allowLateJoin,
+				lateJoinDate: allowLateJoin ? lateJoinDate.toISOString() : null,
+				lateJoinTime: allowLateJoin ? lateJoinTime : null,
 			};
 
 			if (isEditing) {
@@ -453,6 +467,26 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 	const handleViewMyEvents = () => {
 		navigate("/myevents");
 	};
+
+	useEffect(() => {
+		if (date && time) {
+			const eventDateTime = new Date(date);
+			const [hours, minutes] = time.split(":");
+			eventDateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+
+			const minLateJoinDate = addHours(eventDateTime, 1);
+			setLateJoinDate(minLateJoinDate);
+			setLateJoinTime(
+				`${minLateJoinDate
+					.getHours()
+					.toString()
+					.padStart(2, "0")}:${minLateJoinDate
+					.getMinutes()
+					.toString()
+					.padStart(2, "0")}`
+			);
+		}
+	}, [date, time]);
 
 	return (
 		<>
@@ -601,30 +635,53 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 						</div>
 					</div>
 
-					<div className="space-y-2">
-						<Label>Data i godzina rozpoczęcia</Label>
-						<div className="flex space-x-2">
-							<div className="flex-grow">
-								<Calendar
-									mode="single"
-									selected={date}
-									onSelect={setDate}
-									locale={pl}
-									className="rounded-md border"
-									required
-									disabled={(date) => {
-										if (isToday(date)) {
-											return false;
-										}
-										return date < new Date();
-									}}
-								/>
-							</div>
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label>Data rozpoczęcia</Label>
+							<Calendar
+								mode="single"
+								selected={date}
+								onSelect={setDate}
+								locale={pl}
+								className="rounded-md border w-full"
+								required
+								disabled={(date) => {
+									if (isToday(date)) {
+										return false;
+									}
+									return isBefore(date, new Date());
+								}}
+								classNames={{
+									months: "w-full",
+									month: "w-full",
+									table: "w-full border-collapse",
+									head_row: "flex w-full mt-2",
+									head_cell:
+										"text-muted-foreground rounded-md w-full font-normal text-[0.8rem]",
+									row: "flex w-full mt-2",
+									cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20 w-full",
+									day: "h-9 w-full p-0 font-normal aria-selected:opacity-100",
+									day_selected:
+										"bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-md",
+									day_today:
+										"bg-accent text-accent-foreground rounded-md",
+									day_outside:
+										"text-muted-foreground opacity-50",
+									day_disabled:
+										"text-muted-foreground opacity-50",
+									day_range_middle:
+										"aria-selected:bg-accent aria-selected:text-accent-foreground",
+									day_hidden: "invisible",
+								}}
+							/>
+						</div>
+						<div className="flex items-center justify-between">
+							<Label>Godzina rozpoczęcia</Label>
 							<Input
 								type="time"
 								value={time}
 								onChange={(e) => setTime(e.target.value)}
-								className="w-24 focus:ring-black focus:border-black"
+								className="w-auto focus:ring-black focus:border-black"
 								min={
 									isToday(date) ? getCurrentTime() : undefined
 								}
@@ -632,6 +689,52 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 							/>
 						</div>
 					</div>
+
+					<div className="space-y-2 mt-4">
+						<div className="flex items-center">
+							<input
+								type="checkbox"
+								id="allowLateJoin"
+								checked={allowLateJoin}
+								onChange={(e) =>
+									setAllowLateJoin(e.target.checked)
+								}
+								className="mr-2"
+							/>
+							<Label htmlFor="allowLateJoin">
+								Umożliw dołączenie do wydarzenia po rozpoczęciu
+							</Label>
+						</div>
+					</div>
+
+					{allowLateJoin && (
+						<div className="space-y-2 mt-4">
+							<Label>Do kiedy można dołączać?</Label>
+							<SingleRowCalendar
+								startDate={new Date(date)}
+								onSelectDate={setLateJoinDate}
+								selectedDate={lateJoinDate}
+							/>
+							<div className="flex items-center justify-between">
+								<Label>Wybierz godzinę</Label>
+								<Input
+									type="time"
+									value={lateJoinTime}
+									onChange={(e) =>
+										setLateJoinTime(e.target.value)
+									}
+									className="w-24 focus:ring-black focus:border-black"
+									min={
+										lateJoinDate.toDateString() ===
+										new Date(date).toDateString()
+											? time
+											: undefined
+									}
+									required
+								/>
+							</div>
+						</div>
+					)}
 
 					<div className="space-y-2">
 						<Label htmlFor="location">Lokalizacja</Label>
