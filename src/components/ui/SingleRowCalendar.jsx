@@ -12,17 +12,35 @@ const SingleRowCalendar = ({ startDate, onSelectDate, selectedDate }) => {
 		setCurrentWeek(week);
 	}, [startDate]);
 
-	const handlePrevWeek = () => {
+	const handlePrevWeek = (e) => {
+		e.preventDefault();
+		e.stopPropagation();
 		setCurrentWeek((prev) => prev.map((date) => addDays(date, -7)));
 	};
 
-	const handleNextWeek = () => {
+	const handleNextWeek = (e) => {
+		e.preventDefault();
+		e.stopPropagation();
 		setCurrentWeek((prev) => prev.map((date) => addDays(date, 7)));
 	};
 
+	const handleDateSelect = (e, date) => {
+		e.preventDefault();
+		e.stopPropagation();
+		onSelectDate(date);
+	};
+
 	return (
-		<div className="flex items-center space-x-2 overflow-x-auto pb-2">
-			<Button variant="outline" size="icon" onClick={handlePrevWeek}>
+		<div
+			className="flex items-center space-x-2 overflow-x-auto pb-2"
+			onClick={(e) => e.stopPropagation()}
+		>
+			<Button
+				variant="outline"
+				size="icon"
+				onClick={handlePrevWeek}
+				type="button"
+			>
 				<ChevronLeft className="h-4 w-4" />
 			</Button>
 			{currentWeek.map((date) => (
@@ -32,8 +50,9 @@ const SingleRowCalendar = ({ startDate, onSelectDate, selectedDate }) => {
 						isSameDay(date, selectedDate) ? "default" : "outline"
 					}
 					className="flex-shrink-0"
-					onClick={() => onSelectDate(date)}
+					onClick={(e) => handleDateSelect(e, date)}
 					disabled={date < startDate}
+					type="button"
 				>
 					<div className="text-center">
 						<div className="text-sm font-semibold">
@@ -45,7 +64,12 @@ const SingleRowCalendar = ({ startDate, onSelectDate, selectedDate }) => {
 					</div>
 				</Button>
 			))}
-			<Button variant="outline" size="icon" onClick={handleNextWeek}>
+			<Button
+				variant="outline"
+				size="icon"
+				onClick={handleNextWeek}
+				type="button"
+			>
 				<ChevronRight className="h-4 w-4" />
 			</Button>
 		</div>

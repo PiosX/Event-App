@@ -52,6 +52,7 @@ import { motion } from "framer-motion";
 import { isToday, addHours, isBefore, isAfter, parseISO } from "date-fns";
 import { getCurrentTime } from "@/lib/event-functions";
 import SingleRowCalendar from "@/components/ui/SingleRowCalendar";
+import { Switch } from "@/components/ui/switch";
 
 const categories = [
 	"Podróże",
@@ -691,16 +692,14 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 					</div>
 
 					<div className="space-y-2 mt-4">
-						<div className="flex items-center">
-							<input
-								type="checkbox"
-								id="allowLateJoin"
-								checked={allowLateJoin}
-								onChange={(e) =>
-									setAllowLateJoin(e.target.checked)
-								}
-								className="mr-2"
-							/>
+						<div className="flex items-center gap-4">
+							<div className="flex items-center gap-2">
+								<Switch
+									id="allowLateJoin"
+									checked={allowLateJoin}
+									onCheckedChange={setAllowLateJoin}
+								/>
+							</div>
 							<Label htmlFor="allowLateJoin">
 								Umożliw dołączenie do wydarzenia po rozpoczęciu
 							</Label>
