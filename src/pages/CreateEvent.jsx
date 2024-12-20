@@ -224,12 +224,12 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			setRequirements(eventToEdit.requirements || {});
 			setCroppedImage(eventToEdit.image);
 			setAllowLateJoin(eventToEdit.allowLateJoin);
-			setLateJoinDate(
-				eventToEdit.lateJoinDate
-					? new Date(eventToEdit.lateJoinDate)
-					: new Date()
-			);
-			setLateJoinTime(eventToEdit.lateJoinTime || "");
+			if (eventToEdit.lateJoinDate) {
+				setLateJoinDate(new Date(eventToEdit.lateJoinDate));
+			}
+			if (eventToEdit.lateJoinTime) {
+				setLateJoinTime(eventToEdit.lateJoinTime);
+			}
 		}
 	}, [eventToEdit]);
 
@@ -475,19 +475,21 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			const [hours, minutes] = time.split(":");
 			eventDateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
 
-			const minLateJoinDate = addHours(eventDateTime, 1);
-			setLateJoinDate(minLateJoinDate);
-			setLateJoinTime(
-				`${minLateJoinDate
-					.getHours()
-					.toString()
-					.padStart(2, "0")}:${minLateJoinDate
-					.getMinutes()
-					.toString()
-					.padStart(2, "0")}`
-			);
+			if (!isEditing || !eventToEdit.lateJoinDate) {
+				const minLateJoinDate = addHours(eventDateTime, 1);
+				setLateJoinDate(minLateJoinDate);
+				setLateJoinTime(
+					`${minLateJoinDate
+						.getHours()
+						.toString()
+						.padStart(2, "0")}:${minLateJoinDate
+						.getMinutes()
+						.toString()
+						.padStart(2, "0")}`
+				);
+			}
 		}
-	}, [date, time]);
+	}, [date, time, isEditing, eventToEdit]);
 
 	return (
 		<>
@@ -755,7 +757,11 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 
 					<div className="space-y-2">
 						<Label>Wymagania/kryteria dołączenia</Label>
-						<div className="flex flex-wrap gap-2">
+						<div
+							className={`flex flex-wrap  ${
+								isEditing ? "gap-1" : "gap-2"
+							}`}
+						>
 							{["none", "age", "gender", "location", "other"].map(
 								(req) => (
 									<Button
