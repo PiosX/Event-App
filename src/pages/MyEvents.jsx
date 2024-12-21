@@ -8,6 +8,8 @@ import {
 	Clock,
 	X,
 } from "lucide-react";
+import Lottie from "lottie-react";
+import animationCreatedEvent from "../assets/animation-createdEvent.json";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +62,8 @@ export function MyEvents() {
 	const [loading, setLoading] = useState(true);
 	const [userData, setUserData] = useState(null);
 	const [editingEvent, setEditingEvent] = useState(null); // Added state for editing event
+	const [showNotification, setShowNotification] = useState(false);
+	const [notificationType, setNotificationType] = useState("success");
 	const mapping = {
 		gender: "Płeć",
 		age: "Wiek",
@@ -367,7 +371,14 @@ export function MyEvents() {
 	const handleCloseEdit = () => {
 		setEditingEvent(null);
 		fetchEvents();
-	}; // Added function to close the edit panel
+		showSuccessNotification();
+	};
+
+	const showSuccessNotification = () => {
+		setNotificationType("success");
+		setShowNotification(true);
+		setTimeout(() => setShowNotification(false), 3000);
+	};
 
 	const handleEditEvent = (event) => {
 		setEditingEvent(event);
@@ -659,6 +670,37 @@ export function MyEvents() {
 					</div>
 				</div>
 			)}
+			<AnimatePresence>
+				{showNotification && (
+					<motion.div
+						initial={{ y: -100, opacity: 0 }}
+						animate={{ y: 0, opacity: 1 }}
+						exit={{ y: -100, opacity: 0 }}
+						transition={{
+							type: "spring",
+							stiffness: 100,
+							damping: 10,
+						}}
+						className="fixed top-0 left-0 right-0 z-50 w-full"
+					>
+						<div className="bg-white shadow-lg rounded-lg p-4 m-4 flex items-center space-x-4">
+							<div className="w-16 h-16 flex items-center justify-center">
+								<Lottie
+									animationData={animationCreatedEvent}
+									loop={true}
+									autoplay={true}
+								/>
+							</div>
+							<div>
+								<h3 className="text-lg font-bold">Sukces!</h3>
+								<p className="text-sm">
+									Pomyślnie zapisano zmiany.
+								</p>
+							</div>
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
 		</div>
 	);
 }

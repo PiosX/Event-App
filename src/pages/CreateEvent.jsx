@@ -49,7 +49,14 @@ import { getCoordinates } from "@/lib/event-functions";
 import animationData from "../assets/animation-createdEvent.json";
 import Lottie from "lottie-react";
 import { motion } from "framer-motion";
-import { isToday, addHours, isBefore, isAfter, parseISO } from "date-fns";
+import {
+	isToday,
+	addHours,
+	isBefore,
+	isAfter,
+	parseISO,
+	format,
+} from "date-fns";
 import { getCurrentTime } from "@/lib/event-functions";
 import SingleRowCalendar from "@/components/ui/SingleRowCalendar";
 import { Switch } from "@/components/ui/switch";
@@ -475,18 +482,17 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			const [hours, minutes] = time.split(":");
 			eventDateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
 
+			const now = new Date();
+			const minLateJoinDate = new Date(
+				Math.max(
+					eventDateTime.getTime() + 3600000,
+					now.getTime() + 3600000
+				)
+			);
+
 			if (!isEditing || !eventToEdit.lateJoinDate) {
-				const minLateJoinDate = addHours(eventDateTime, 1);
 				setLateJoinDate(minLateJoinDate);
-				setLateJoinTime(
-					`${minLateJoinDate
-						.getHours()
-						.toString()
-						.padStart(2, "0")}:${minLateJoinDate
-						.getMinutes()
-						.toString()
-						.padStart(2, "0")}`
-				);
+				setLateJoinTime(format(minLateJoinDate, "HH:mm"));
 			}
 		}
 	}, [date, time, isEditing, eventToEdit]);
@@ -686,7 +692,12 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								onChange={(e) => setTime(e.target.value)}
 								className="w-auto focus:ring-black focus:border-black"
 								min={
-									isToday(date) ? getCurrentTime() : undefined
+									isToday(date)
+										? format(
+												addHours(new Date(), 1),
+												"HH:mm"
+										  )
+										: undefined
 								}
 								required
 							/>
@@ -725,12 +736,19 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 										setLateJoinTime(e.target.value)
 									}
 									className="w-24 focus:ring-black focus:border-black"
-									min={
-										lateJoinDate.toDateString() ===
-										new Date(date).toDateString()
-											? time
-											: undefined
-									}
+									min={format(
+										addHours(
+											parseISO(
+												`${
+													date
+														.toISOString()
+														.split("T")[0]
+												}T${time}:00.000Z`
+											),
+											1
+										),
+										"HH:mm"
+									)}
 									required
 								/>
 							</div>

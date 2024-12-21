@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, parseISO, differenceInSeconds, addHours } from "date-fns";
 import {
 	collection,
 	query,
@@ -237,34 +237,73 @@ export async function updateChatParticipants(eventId, userId) {
 	}
 }
 
-export const calculateTimeLeft = (eventDate) => {
-	const difference = new Date(eventDate) - new Date();
-	if (difference > 0) {
-		const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-		const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-		const minutes = Math.floor((difference / 1000 / 60) % 60);
-		const seconds = Math.floor((difference / 1000) % 60);
+export const calculateTimeLeft = (eventDate, allowLateJoin, lateJoinDate) => {
+	const now = new Date();
+	const eventDateTime = new Date(eventDate);
+	const lateJoinDateTime = lateJoinDate ? new Date(lateJoinDate) : null;
 
-		return { days, hours, minutes, seconds };
+	if (now < eventDateTime) {
+		const difference = eventDateTime - now;
+		return {
+			difference,
+			status: "upcoming",
+		};
+	} else if (allowLateJoin && lateJoinDateTime && now < lateJoinDateTime) {
+		const difference = lateJoinDateTime - now;
+		return {
+			difference,
+			status: "ongoing",
+		};
 	}
-	return null;
+
+	return { status: "ended" };
 };
 
 export const getTimeLeftColor = (timeLeft) => {
 	if (!timeLeft) return "bg-red-500";
-	if (timeLeft.days > 2) return "bg-gray-200";
-	if (timeLeft.days > 1) return "bg-yellow-200";
-	return "bg-red-200";
+	if (timeLeft.status === "ended") return "bg-red-500";
+	if (timeLeft.status === "ongoing") return "bg-green-500";
+	if (timeLeft.difference > 172800000) return "bg-gray-200"; // More than 2 days
+	if (timeLeft.difference > 86400000) return "bg-yellow-200"; // Between 1 and 2 days
+	return "bg-green-200"; // Less than 1 day
 };
 
 export const formatTimeLeft = (timeLeft) => {
-	if (!timeLeft) return "Wydarzenie się rozpoczęło";
-	if (timeLeft.days > 0)
-		return `${timeLeft.days} ${timeLeft.days === 1 ? "dzień" : "dni"}`;
-	return `${String(timeLeft.hours).padStart(2, "0")}:${String(
-		timeLeft.minutes
-	).padStart(2, "0")}:${String(timeLeft.seconds).padStart(2, "0")}`;
+	if (!timeLeft) return "Wydarzenie zakończone";
+	if (timeLeft.status === "ended") return "Wydarzenie zakończone";
+
+	const days = Math.floor(timeLeft.difference / (1000 * 60 * 60 * 24));
+	const hours = Math.floor(
+		(timeLeft.difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+	);
+	const minutes = Math.floor(
+		(timeLeft.difference % (1000 * 60 * 60)) / (1000 * 60)
+	);
+	const seconds = Math.floor((timeLeft.difference % (1000 * 60)) / 1000);
+
+	const formatNumber = (num) => num.toString().padStart(2, "0");
+
+	if (timeLeft.status === "ongoing") {
+		return `Koniec za: ${formatNumber(hours)}:${formatNumber(
+			minutes
+		)}:${formatNumber(seconds)}`;
+	}
+
+	if (days > 0) {
+		return `Do startu: ${days} ${days === 1 ? "dzień" : "dni"}`;
+	}
+	return `Do startu: ${formatNumber(hours)}:${formatNumber(
+		minutes
+	)}:${formatNumber(seconds)}`;
 };
+
+function formatDuration(duration) {
+	if (duration.days > 0)
+		return `${duration.days} ${duration.days === 1 ? "dzień" : "dni"}`;
+	return `${String(duration.hours).padStart(2, "0")}:${String(
+		duration.minutes
+	).padStart(2, "0")}:${String(duration.seconds).padStart(2, "0")}`;
+}
 
 export const getCurrentTime = () => {
 	const now = new Date();

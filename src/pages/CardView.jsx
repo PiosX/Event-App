@@ -18,7 +18,11 @@ import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
-import { calculateTimeLeft, formatTimeLeft } from "@/lib/event-functions";
+import {
+	calculateTimeLeft,
+	getTimeLeftColor,
+	formatTimeLeft,
+} from "@/lib/event-functions";
 import { useLocation } from "react-router-dom";
 import { getAuth } from "firebase/auth";
 import ReportForm from "./ReportForm";
@@ -42,16 +46,24 @@ export function CardView({
 	const [touchEnd, setTouchEnd] = useState(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragDirection, setDragDirection] = useState(null);
-	const [time, setTime] = useState(calculateTimeLeft(event.date));
+	const [time, setTime] = useState(
+		calculateTimeLeft(event.date, event.allowLateJoin, event.lateJoinDate)
+	);
 	const controls = useAnimation();
 
 	useEffect(() => {
 		const timer = setInterval(() => {
-			setTime(calculateTimeLeft(event.date));
+			setTime(
+				calculateTimeLeft(
+					event.date,
+					event.allowLateJoin,
+					event.lateJoinDate
+				)
+			);
 		}, 1000);
 
 		return () => clearInterval(timer);
-	}, []);
+	}, [event.date, event.allowLateJoin, event.lateJoinDate]);
 
 	const handleTouchStart = (e) => {
 		if (!isInteractive || isOtherPage) return;
@@ -191,7 +203,7 @@ export function CardView({
 							<div className="absolute top-4 right-4 flex space-x-2">
 								<div
 									className={`${getTimeLeftColor(
-										event.timeLeft
+										time
 									)} text-gray-800 px-2 py-1 rounded-md text-sm font-medium flex items-center`}
 								>
 									<Clock className="w-4 h-4 mr-1" />

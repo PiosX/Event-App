@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { Calendar, MapPin, Clock } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { pl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
 import animationNotFound from "../assets/animation-notFound.json";
-import { calculateTimeLeft, formatTimeLeft } from "@/lib/event-functions";
+import {
+	calculateTimeLeft,
+	getTimeLeftColor,
+	formatTimeLeft,
+} from "@/lib/event-functions";
 
 export function ListView({
 	events,
@@ -18,7 +22,11 @@ export function ListView({
 			setEvents((prevEvents) =>
 				prevEvents.map((event) => ({
 					...event,
-					timeLeft: calculateTimeLeft(event.date),
+					timeLeft: calculateTimeLeft(
+						event.date,
+						event.allowLateJoin,
+						event.lateJoinDate
+					),
 				}))
 			);
 		}, 1000);
@@ -127,7 +135,7 @@ export function ListView({
 										<Calendar className="w-5 h-5 mr-2 text-gray-500" />
 										<span className="font-semibold">
 											{format(
-												new Date(event.date),
+												parseISO(event.date),
 												"dd MMMM yyyy",
 												{
 													locale: pl,
