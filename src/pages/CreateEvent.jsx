@@ -375,17 +375,40 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				imageUrl = await uploadImage(croppedImage);
 			}
 
+			const localDate = new Date(date);
+			const [hours, minutes] = time.split(":");
+			localDate.setHours(
+				parseInt(hours, 10),
+				parseInt(minutes, 10),
+				0,
+				0
+			);
+
+			let localLateJoinDate = null;
+			if (allowLateJoin && lateJoinDate) {
+				localLateJoinDate = new Date(lateJoinDate);
+				const [lateHours, lateMinutes] = lateJoinTime.split(":");
+				localLateJoinDate.setHours(
+					parseInt(lateHours, 10),
+					parseInt(lateMinutes, 10),
+					0,
+					0
+				);
+			}
+
 			const eventData = {
 				eventName: eventName.trim(),
 				eventDescription: eventDescription.trim(),
 				selectedCategories,
 				capacity: isUnlimited ? -1 : parseInt(capacity, 10),
-				date: date.toISOString(),
+				date: localDate.toISOString(),
 				time,
 				requirements,
 				image: imageUrl,
 				allowLateJoin,
-				lateJoinDate: allowLateJoin ? lateJoinDate.toISOString() : null,
+				lateJoinDate: allowLateJoin
+					? localLateJoinDate.toISOString()
+					: null,
 				lateJoinTime: allowLateJoin ? lateJoinTime : null,
 			};
 
@@ -445,8 +468,8 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 					participants: [
 						{
 							id: user,
-							name: userData.name,
-							profileImage: userData.profileImage,
+							name: userData?.name || "Nieznany użytkownik",
+							profileImage: userData?.profileImage || "",
 						},
 					],
 					messages: [],
@@ -745,7 +768,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 														.split("T")[0]
 												}T${time}:00.000Z`
 											),
-											0
+											1
 										),
 										"HH:mm"
 									)}

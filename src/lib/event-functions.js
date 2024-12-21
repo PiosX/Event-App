@@ -1,4 +1,4 @@
-import { format, parseISO, differenceInSeconds, addHours } from "date-fns";
+import { format, parseISO, differenceInMilliseconds } from "date-fns";
 import {
 	collection,
 	query,
@@ -239,8 +239,19 @@ export async function updateChatParticipants(eventId, userId) {
 
 export const calculateTimeLeft = (eventDate, allowLateJoin, lateJoinDate) => {
 	const now = new Date();
-	const eventDateTime = new Date(eventDate);
-	const lateJoinDateTime = lateJoinDate ? new Date(lateJoinDate) : null;
+	const localEventDate = new Date(eventDate).toLocaleString("en-US", {
+		timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+	});
+	const localLateJoinDate = lateJoinDate
+		? new Date(lateJoinDate).toLocaleString("en-US", {
+				timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+		  })
+		: null;
+
+	const eventDateTime = new Date(localEventDate);
+	const lateJoinDateTime = localLateJoinDate
+		? new Date(localLateJoinDate)
+		: null;
 
 	if (now < eventDateTime) {
 		const difference = eventDateTime - now;
