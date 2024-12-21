@@ -368,10 +368,12 @@ export function MyEvents() {
 		}
 	};
 
-	const handleCloseEdit = () => {
+	const handleCloseEdit = (wasUpdated) => {
 		setEditingEvent(null);
-		fetchEvents();
-		showSuccessNotification();
+		if (wasUpdated) {
+			fetchEvents();
+			showSuccessNotification();
+		}
 	};
 
 	const showSuccessNotification = () => {
@@ -664,8 +666,10 @@ export function MyEvents() {
 						</button>
 						<CreateEvent
 							eventToEdit={editingEvent}
-							onEventCreated={handleCloseEdit}
-							onCancel={handleCloseEdit}
+							onEventCreated={(wasUpdated) =>
+								handleCloseEdit(wasUpdated)
+							}
+							onCancel={() => handleCloseEdit(false)}
 						/>
 					</div>
 				</div>

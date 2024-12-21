@@ -745,7 +745,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 														.split("T")[0]
 												}T${time}:00.000Z`
 											),
-											1
+											0
 										),
 										"HH:mm"
 									)}
