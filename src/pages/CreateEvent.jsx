@@ -759,19 +759,26 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 										setLateJoinTime(e.target.value)
 									}
 									className="w-24 focus:ring-black focus:border-black"
-									min={format(
-										addHours(
-											parseISO(
-												`${
-													date
-														.toISOString()
-														.split("T")[0]
-												}T${time}:00.000Z`
-											),
-											1
-										),
-										"HH:mm"
-									)}
+									min={
+										lateJoinDate.toDateString() ===
+										date.toDateString()
+											? format(
+													addHours(
+														parseISO(
+															`${
+																date
+																	.toISOString()
+																	.split(
+																		"T"
+																	)[0]
+															}T${time}:00.000Z`
+														),
+														0
+													),
+													"HH:mm"
+											  )
+											: undefined
+									}
 									required
 								/>
 							</div>

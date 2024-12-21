@@ -280,8 +280,8 @@ export const getTimeLeftColor = (timeLeft) => {
 };
 
 export const formatTimeLeft = (timeLeft) => {
-	if (!timeLeft) return "Wydarzenie zakończone";
-	if (timeLeft.status === "ended") return "Wydarzenie zakończone";
+	if (!timeLeft) return "Zakończone";
+	if (timeLeft.status === "ended") return "Zakończone";
 
 	const days = Math.floor(timeLeft.difference / (1000 * 60 * 60 * 24));
 	const hours = Math.floor(
