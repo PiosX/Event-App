@@ -86,15 +86,27 @@ export function MyEvents() {
 			setEvents((prevEvents) => ({
 				participating: prevEvents.participating.map((event) => ({
 					...event,
-					timeLeft: calculateTimeLeft(event.date),
+					timeLeft: calculateTimeLeft(
+						event.date,
+						event.customDuration,
+						event.endDate
+					),
 				})),
 				liked: prevEvents.liked.map((event) => ({
 					...event,
-					timeLeft: calculateTimeLeft(event.date),
+					timeLeft: calculateTimeLeft(
+						event.date,
+						event.customDuration,
+						event.endDate
+					),
 				})),
 				created: prevEvents.created.map((event) => ({
 					...event,
-					timeLeft: calculateTimeLeft(event.date),
+					timeLeft: calculateTimeLeft(
+						event.date,
+						event.customDuration,
+						event.endDate
+					),
 				})),
 			}));
 		}, 1000);

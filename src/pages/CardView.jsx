@@ -47,7 +47,7 @@ export function CardView({
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragDirection, setDragDirection] = useState(null);
 	const [time, setTime] = useState(
-		calculateTimeLeft(event.date, event.allowLateJoin, event.lateJoinDate)
+		calculateTimeLeft(event.date, event.customDuration, event.endDate)
 	);
 	const controls = useAnimation();
 
@@ -56,14 +56,14 @@ export function CardView({
 			setTime(
 				calculateTimeLeft(
 					event.date,
-					event.allowLateJoin,
-					event.lateJoinDate
+					event.customDuration,
+					event.endDate
 				)
 			);
 		}, 1000);
 
 		return () => clearInterval(timer);
-	}, [event.date, event.allowLateJoin, event.lateJoinDate]);
+	}, [event.date, event.customDuration, event.endDate]);
 
 	const handleTouchStart = (e) => {
 		if (!isInteractive || isOtherPage) return;

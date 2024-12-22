@@ -60,6 +60,7 @@ import {
 import { getCurrentTime } from "@/lib/event-functions";
 import SingleRowCalendar from "@/components/ui/SingleRowCalendar";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const categories = [
 	"Podróże",
@@ -192,8 +193,10 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 	const [isEditing, setIsEditing] = useState(!!eventToEdit);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [allowLateJoin, setAllowLateJoin] = useState(false);
-	const [lateJoinDate, setLateJoinDate] = useState(new Date());
-	const [lateJoinTime, setLateJoinTime] = useState("");
+	const [customDuration, setCustomDuration] = useState(false);
+	const [endDate, setEndDate] = useState(new Date());
+	const [endTime, setEndTime] = useState("");
+
 	const navigate = useNavigate();
 	const storage = getStorage();
 	const auth = getAuth();
@@ -230,12 +233,13 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			setCity(eventToEdit.city);
 			setRequirements(eventToEdit.requirements || {});
 			setCroppedImage(eventToEdit.image);
+			setCustomDuration(eventToEdit.customDuration);
 			setAllowLateJoin(eventToEdit.allowLateJoin);
-			if (eventToEdit.lateJoinDate) {
-				setLateJoinDate(new Date(eventToEdit.lateJoinDate));
+			if (eventToEdit.endDate) {
+				setEndDate(new Date(eventToEdit.endDate));
 			}
-			if (eventToEdit.lateJoinTime) {
-				setLateJoinTime(eventToEdit.lateJoinTime);
+			if (eventToEdit.endTime) {
+				setEndTime(eventToEdit.endTime);
 			}
 		}
 	}, [eventToEdit]);
@@ -384,16 +388,19 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				0
 			);
 
-			let localLateJoinDate = null;
-			if (allowLateJoin && lateJoinDate) {
-				localLateJoinDate = new Date(lateJoinDate);
-				const [lateHours, lateMinutes] = lateJoinTime.split(":");
-				localLateJoinDate.setHours(
-					parseInt(lateHours, 10),
-					parseInt(lateMinutes, 10),
+			let localEndDate = null;
+			if (customDuration && endDate) {
+				localEndDate = new Date(endDate);
+				const [endHours, endMinutes] = endTime.split(":");
+				localEndDate.setHours(
+					parseInt(endHours, 10),
+					parseInt(endMinutes, 10),
 					0,
 					0
 				);
+			} else {
+				localEndDate = new Date(localDate);
+				localEndDate.setHours(localEndDate.getHours() + 1);
 			}
 
 			const eventData = {
@@ -403,13 +410,14 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				capacity: isUnlimited ? -1 : parseInt(capacity, 10),
 				date: localDate.toISOString(),
 				time,
+				endDate: localEndDate.toISOString(),
+				endTime: customDuration
+					? endTime
+					: format(localEndDate, "HH:mm"),
+				customDuration,
+				allowLateJoin,
 				requirements,
 				image: imageUrl,
-				allowLateJoin,
-				lateJoinDate: allowLateJoin
-					? localLateJoinDate.toISOString()
-					: null,
-				lateJoinTime: allowLateJoin ? lateJoinTime : null,
 			};
 
 			if (isEditing) {
@@ -505,20 +513,27 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			const [hours, minutes] = time.split(":");
 			eventDateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
 
-			const now = new Date();
-			const minLateJoinDate = new Date(
-				Math.max(
-					eventDateTime.getTime() + 3600000,
-					now.getTime() + 3600000
-				)
-			);
-
-			if (!isEditing || !eventToEdit.lateJoinDate) {
-				setLateJoinDate(minLateJoinDate);
-				setLateJoinTime(format(minLateJoinDate, "HH:mm"));
+			if (!customDuration) {
+				const endDateTime = new Date(eventDateTime);
+				endDateTime.setHours(endDateTime.getHours() + 1);
+				setEndDate(endDateTime);
+				setEndTime(format(endDateTime, "HH:mm"));
 			}
 		}
-	}, [date, time, isEditing, eventToEdit]);
+	}, [date, time, customDuration]);
+
+	const handleCustomDurationChange = (checked) => {
+		setCustomDuration(checked);
+		if (!checked && date && time) {
+			const eventDateTime = new Date(date);
+			const [hours, minutes] = time.split(":");
+			eventDateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+			const endDateTime = new Date(eventDateTime);
+			endDateTime.setHours(endDateTime.getHours() + 1);
+			setEndDate(endDateTime);
+			setEndTime(format(endDateTime, "HH:mm"));
+		}
+	};
 
 	return (
 		<>
@@ -731,36 +746,35 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 						<div className="flex items-center gap-4">
 							<div className="flex items-center gap-2">
 								<Switch
-									id="allowLateJoin"
-									checked={allowLateJoin}
-									onCheckedChange={setAllowLateJoin}
+									id="customDuration"
+									checked={customDuration}
+									onCheckedChange={handleCustomDurationChange}
 								/>
 							</div>
-							<Label htmlFor="allowLateJoin">
-								Umożliw dołączenie do wydarzenia po rozpoczęciu
+							<Label htmlFor="customDuration">
+								Chcę określić dokładny czas zakończenia
+								wydarzenia (jeśli trwa dłużej niż godzinę)
 							</Label>
 						</div>
 					</div>
 
-					{allowLateJoin && (
+					{customDuration && (
 						<div className="space-y-2 mt-4">
-							<Label>Do kiedy można dołączać?</Label>
+							<Label>Określ datę i czas zakończenia</Label>
 							<SingleRowCalendar
 								startDate={new Date(date)}
-								onSelectDate={setLateJoinDate}
-								selectedDate={lateJoinDate}
+								onSelectDate={setEndDate}
+								selectedDate={endDate}
 							/>
 							<div className="flex items-center justify-between">
-								<Label>Wybierz godzinę</Label>
+								<Label>Wybierz godzinę zakończenia</Label>
 								<Input
 									type="time"
-									value={lateJoinTime}
-									onChange={(e) =>
-										setLateJoinTime(e.target.value)
-									}
+									value={endTime}
+									onChange={(e) => setEndTime(e.target.value)}
 									className="w-24 focus:ring-black focus:border-black"
 									min={
-										lateJoinDate.toDateString() ===
+										endDate.toDateString() ===
 										date.toDateString()
 											? format(
 													addHours(
@@ -773,7 +787,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 																	)[0]
 															}T${time}:00.000Z`
 														),
-														0
+														1
 													),
 													"HH:mm"
 											  )
@@ -784,6 +798,18 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 							</div>
 						</div>
 					)}
+					<div className="space-y-2 mt-4">
+						<div className="flex items-center gap-2">
+							<Checkbox
+								id="allowLateJoin"
+								checked={allowLateJoin}
+								onCheckedChange={setAllowLateJoin}
+							/>
+							<Label htmlFor="allowLateJoin">
+								Umożliw dołączenie do wydarzenia po rozpoczęciu
+							</Label>
+						</div>
+					</div>
 
 					<div className="space-y-2">
 						<Label htmlFor="location">Lokalizacja</Label>

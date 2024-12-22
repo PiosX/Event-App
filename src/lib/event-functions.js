@@ -280,9 +280,9 @@ export const getTimeLeftColor = (timeLeft) => {
 };
 
 export const formatTimeLeft = (timeLeft) => {
-	if (!timeLeft) return "Zakończone";
-	if (timeLeft.status === "ended") return "Zakończone";
+	if (!timeLeft || timeLeft.status === "ended") return "Zakończone";
 
+	const formatNumber = (num) => num.toString().padStart(2, "0");
 	const days = Math.floor(timeLeft.difference / (1000 * 60 * 60 * 24));
 	const hours = Math.floor(
 		(timeLeft.difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
@@ -291,8 +291,6 @@ export const formatTimeLeft = (timeLeft) => {
 		(timeLeft.difference % (1000 * 60 * 60)) / (1000 * 60)
 	);
 	const seconds = Math.floor((timeLeft.difference % (1000 * 60)) / 1000);
-
-	const formatNumber = (num) => num.toString().padStart(2, "0");
 
 	if (timeLeft.status === "ongoing") {
 		return `Koniec za: ${formatNumber(hours)}:${formatNumber(
