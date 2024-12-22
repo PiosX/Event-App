@@ -7,6 +7,7 @@ import {
 	MapPin,
 	Clock,
 	X,
+	Timer,
 } from "lucide-react";
 import Lottie from "lottie-react";
 import animationCreatedEvent from "../assets/animation-createdEvent.json";
@@ -34,6 +35,8 @@ import {
 	calculateTimeLeft,
 	getTimeLeftColor,
 	formatTimeLeft,
+	calculateEventDuration,
+	getHourWord,
 } from "@/lib/event-functions";
 import CreateEvent from "./CreateEvent";
 
@@ -492,12 +495,33 @@ export function MyEvents() {
 											<span className="font-semibold">
 												{format(
 													new Date(event.date),
-													"dd MMMM yyyy",
+													"EEE, dd MMMM yyyy",
 													{
 														locale: pl,
 													}
+												)}
+											</span>
+										</div>
+										<div className="flex items-center mb-2">
+											<Clock className="w-5 h-5 mr-2 text-gray-500" />
+											<span className="font-semibold">
+												O godzinie: {event.time}
+											</span>
+										</div>
+										<div className="flex items-center mb-2">
+											<Timer className="w-5 h-5 mr-2 text-gray-500" />
+											<span className="font-semibold">
+												Czas trwania:{" "}
+												{calculateEventDuration(
+													event.date,
+													event.endDate
 												)}{" "}
-												o {event.time}
+												{getHourWord(
+													calculateEventDuration(
+														event.date,
+														event.endDate
+													)
+												)}
 											</span>
 										</div>
 										<div className="flex items-center mb-4">
@@ -662,6 +686,7 @@ export function MyEvents() {
 								formatTimeLeft={formatTimeLeft}
 								isOtherPage={true}
 								forceEnableToday={true}
+								uName={userData?.name}
 							/>
 						</motion.div>
 					)}

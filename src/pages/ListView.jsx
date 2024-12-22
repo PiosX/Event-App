@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Calendar, MapPin, Clock } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Calendar, MapPin, Clock, Timer } from "lucide-react";
+import { format, parseISO, differenceInHours } from "date-fns";
 import { pl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
@@ -9,6 +9,8 @@ import {
 	calculateTimeLeft,
 	getTimeLeftColor,
 	formatTimeLeft,
+	calculateEventDuration,
+	getHourWord,
 } from "@/lib/event-functions";
 
 export function ListView({
@@ -24,8 +26,8 @@ export function ListView({
 					...event,
 					timeLeft: calculateTimeLeft(
 						event.date,
-						event.allowLateJoin,
-						event.lateJoinDate
+						event.customDuration,
+						event.endDate
 					),
 				}))
 			);
@@ -136,12 +138,33 @@ export function ListView({
 										<span className="font-semibold">
 											{format(
 												parseISO(event.date),
-												"dd MMMM yyyy",
+												"EEE, dd MMMM yyyy",
 												{
 													locale: pl,
 												}
+											)}
+										</span>
+									</div>
+									<div className="flex items-center mb-2">
+										<Clock className="w-5 h-5 mr-2 text-gray-500" />
+										<span className="font-semibold">
+											O godzinie: {event.time}
+										</span>
+									</div>
+									<div className="flex items-center mb-4">
+										<Timer className="w-5 h-5 mr-2 text-gray-500" />
+										<span className="font-semibold">
+											Czas trwania:{" "}
+											{calculateEventDuration(
+												event.date,
+												event.endDate
 											)}{" "}
-											o {event.time}
+											{getHourWord(
+												calculateEventDuration(
+													event.date,
+													event.endDate
+												)
+											)}
 										</span>
 									</div>
 									<div className="flex items-center mb-4">

@@ -13,6 +13,8 @@ import {
 	Clock,
 	Check,
 	MoreVertical,
+	CalendarRange,
+	Timer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
@@ -22,6 +24,8 @@ import {
 	calculateTimeLeft,
 	getTimeLeftColor,
 	formatTimeLeft,
+	calculateEventDuration,
+	getHourWord,
 } from "@/lib/event-functions";
 import { useLocation } from "react-router-dom";
 import { getAuth } from "firebase/auth";
@@ -41,6 +45,7 @@ export function CardView({
 	onClose,
 	isOtherPage = false,
 	onEdit,
+	uName,
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
@@ -273,7 +278,7 @@ export function CardView({
 									</div>
 								</div>
 								<p className="text-white text-sm mt-2">
-									Utworzone przez: {event.creatorName}
+									Utworzone przez: {uName}
 								</p>
 								<div className="flex items-center text-white text-sm mt-2">
 									<MapPin className="w-4 h-4 mr-1" />
@@ -287,11 +292,40 @@ export function CardView({
 
 					<div className="p-6">
 						<p className="text-sm mb-4">{event.eventDescription}</p>
-						<h3 className="font-bold mb-1">
-							Data wydarzenia:{" "}
-							{format(eventDate, "dd MMMM yyyy", { locale: pl })}
-						</h3>
-						<p className="text-sm mb-4">Godzina: {event.time}</p>
+						<div className="flex items-center mb-2">
+							<CalendarRange className="w-5 h-5 mr-2 text-gray-500" />
+							<span className="font-semibold">
+								{format(
+									new Date(event.date),
+									"EEE, dd MMMM yyyy",
+									{
+										locale: pl,
+									}
+								)}
+							</span>
+						</div>
+						<div className="flex items-center mb-2">
+							<Clock className="w-5 h-5 mr-2 text-gray-500" />
+							<span className="font-semibold">
+								O godzinie: {event.time}
+							</span>
+						</div>
+						<div className="flex items-center mb-4">
+							<Timer className="w-5 h-5 mr-2 text-gray-500" />
+							<span className="font-semibold">
+								Czas trwania:{" "}
+								{calculateEventDuration(
+									event.date,
+									event.endDate
+								)}{" "}
+								{getHourWord(
+									calculateEventDuration(
+										event.date,
+										event.endDate
+									)
+								)}
+							</span>
+						</div>
 						<div className="mb-4">
 							<Calendar
 								mode="single"

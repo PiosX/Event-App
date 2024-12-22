@@ -551,6 +551,7 @@ export default function EventCard() {
 								onDislike={handleDislikeEvent}
 								getTimeLeftColor={getTimeLeftColor}
 								onClose={closeCardView}
+								uName={userData?.name}
 							/>
 						</motion.div>
 					)}

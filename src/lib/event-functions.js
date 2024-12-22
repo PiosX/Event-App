@@ -1,4 +1,9 @@
-import { format, parseISO, differenceInMilliseconds } from "date-fns";
+import {
+	format,
+	parseISO,
+	differenceInMilliseconds,
+	differenceInHours,
+} from "date-fns";
 import {
 	collection,
 	query,
@@ -327,4 +332,17 @@ export const getCurrentTime = () => {
 	now.setHours(now.getHours() + 1);
 
 	return format(now, "HH:mm");
+};
+
+export const calculateEventDuration = (startDate, endDate) => {
+	const start = parseISO(startDate);
+	const end = parseISO(endDate);
+	return differenceInHours(end, start);
+};
+
+
+export const getHourWord = (hours) => {
+    if (hours === 1) return "godzina";
+    if (hours >= 2 && hours <= 4) return "godziny";
+    return "godzin";
 };
