@@ -418,6 +418,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				allowLateJoin,
 				requirements,
 				image: imageUrl,
+				ended: false,
 			};
 
 			if (isEditing) {
