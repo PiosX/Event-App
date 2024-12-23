@@ -523,6 +523,20 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 		}
 	}, [date, time, customDuration]);
 
+	useEffect(() => {
+		if (isToday(date) && time) {
+			const currentTime = new Date();
+			const selectedTime = new Date(date);
+			const [hours, minutes] = time.split(":");
+			selectedTime.setHours(parseInt(hours), parseInt(minutes));
+
+			if (selectedTime <= addHours(currentTime, 1)) {
+				const newTime = format(addHours(currentTime, 1), "HH:mm");
+				setTime(newTime);
+			}
+		}
+	}, [date, time]);
+
 	const handleCustomDurationChange = (checked) => {
 		setCustomDuration(checked);
 		if (!checked && date && time) {
@@ -694,10 +708,10 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								className="rounded-md border w-full"
 								required
 								disabled={(date) => {
-									if (isToday(date)) {
-										return false;
-									}
-									return isBefore(date, new Date());
+									return (
+										isBefore(date, new Date()) &&
+										!isToday(date)
+									);
 								}}
 								classNames={{
 									months: "w-full",

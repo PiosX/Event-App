@@ -113,7 +113,8 @@ export default function EventCard() {
 				while (finalEvents.length < totalLimit) {
 					let q = query(
 						eventsRef,
-						where("date", ">=", new Date().toISOString())
+						where("date", ">=", new Date().toISOString()),
+						where("ended", "!=", true)
 					);
 
 					if (lastVisible) {
@@ -143,7 +144,8 @@ export default function EventCard() {
 							eventData.creator !== user.uid &&
 							(eventData.capacity === -1 ||
 								eventData.participants.length <
-									eventData.capacity)
+									eventData.capacity) &&
+							!eventData.ended
 					);
 
 					// Preferencje

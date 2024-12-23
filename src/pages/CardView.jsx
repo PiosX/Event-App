@@ -16,7 +16,7 @@ import {
 	CalendarRange,
 	Timer,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, isWithinInterval, parseISO } from "date-fns";
 import { pl } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -334,6 +334,21 @@ export function CardView({
 								defaultMonth={eventDate}
 								locale={pl}
 								className="rounded-md border w-full"
+								modifiers={{
+									highlighted: (date) =>
+										isWithinInterval(date, {
+											start: parseISO(event.date),
+											end: parseISO(event.endDate),
+										}),
+								}}
+								modifiersStyles={{
+									highlighted: {
+										backgroundColor: "hsl(var(--primary))",
+										color: "white",
+										borderRadius:
+											"calc(var(--radius) - 2px)",
+									},
+								}}
 								classNames={{
 									months: "w-full",
 									month: "w-full",

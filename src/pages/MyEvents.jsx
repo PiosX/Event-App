@@ -158,7 +158,7 @@ export function MyEvents() {
 						const eventDoc = await getDoc(
 							doc(db, "events", eventId)
 						);
-						if (eventDoc.exists()) {
+						if (eventDoc.exists() && !eventDoc.data().ended) {
 							const eventData = eventDoc.data();
 							const creatorQuery = query(
 								collection(db, "users"),
@@ -208,6 +208,9 @@ export function MyEvents() {
 					})
 				);
 				fetchedEvents = fetchedEvents.filter((event) => event !== null);
+				fetchedEvents.sort(
+					(a, b) => new Date(a.date) - new Date(b.date)
+				);
 			} else if (activeTab === "created") {
 				const q = query(
 					collection(db, "events"),
@@ -252,11 +255,16 @@ export function MyEvents() {
 						};
 					})
 				);
+				fetchedEvents.sort(
+					(a, b) => new Date(a.date) - new Date(b.date)
+				);
 			}
 
 			setEvents((prevEvents) => ({
 				...prevEvents,
-				[activeTab]: fetchedEvents,
+				[activeTab]: fetchedEvents
+					.filter((event) => !event.ended)
+					.sort((a, b) => new Date(a.date) - new Date(b.date)),
 			}));
 		} catch (error) {
 			console.error("Nie udało się uzyskać wydarzeń:", error);
