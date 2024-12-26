@@ -56,6 +56,8 @@ import {
 	isAfter,
 	parseISO,
 	format,
+	endOfDay,
+	addDays,
 } from "date-fns";
 import { getCurrentTime } from "@/lib/event-functions";
 import SingleRowCalendar from "@/components/ui/SingleRowCalendar";
@@ -199,6 +201,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 	const [initialDate, setInitialDate] = useState(null);
 	const [initialTime, setInitialTime] = useState(null);
 	const [isEditMode, setIsEditMode] = useState(!!eventToEdit);
+	const [canEditDateTime, setCanEditDateTime] = useState(false);
 
 	const navigate = useNavigate();
 	const storage = getStorage();
@@ -432,6 +435,13 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			};
 
 			if (isEditMode) {
+				if (canEditDateTime) {
+					eventData.date = localDate.toISOString();
+					eventData.time = time;
+				} else {
+					delete eventData.date;
+					delete eventData.time;
+				}
 				if (
 					street !== eventToEdit.street ||
 					city !== eventToEdit.city
@@ -457,18 +467,6 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 					eventData.city = eventToEdit.city;
 					eventData.lat = eventToEdit.lat;
 					eventData.lng = eventToEdit.lng;
-				}
-
-				// Only update date and time if they've changed
-				if (eventToEdit.date !== eventData.date) {
-					//Do nothing, date will be updated
-				} else {
-					delete eventData.date;
-				}
-				if (eventToEdit.time !== eventData.time) {
-					//Do nothing, time will be updated
-				} else {
-					delete eventData.time;
 				}
 
 				await updateDoc(doc(db, "events", eventToEdit.id), eventData);
@@ -555,15 +553,37 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 	}, [date, time, customDuration]);
 
 	useEffect(() => {
-		if (isToday(date) && time) {
+		if (date && time) {
 			const currentTime = new Date();
+			const nextHour = addHours(currentTime, 1); // Minimalna godzina od teraz
+
+			const selectedDate = new Date(date);
 			const selectedTime = new Date(date);
 			const [hours, minutes] = time.split(":");
-			selectedTime.setHours(parseInt(hours), parseInt(minutes));
+			selectedTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
 
-			if (selectedTime <= addHours(currentTime, 1)) {
-				const newTime = format(addHours(currentTime, 1), "HH:mm");
-				setTime(newTime);
+			// Sprawdzenie, czy wybrano datę przyszłą (tylko kolejny dzień, a nie dalsze daty)
+			const isTomorrow =
+				selectedDate.toDateString() ===
+				addDays(currentTime, 1).toDateString();
+			if (isTomorrow) {
+				const minTimeForTomorrow = new Date(selectedDate);
+				minTimeForTomorrow.setHours(
+					nextHour.getHours(),
+					nextHour.getMinutes()
+				);
+
+				// Jeśli wybrany czas dla przyszłego dnia jest wcześniejszy niż minimalny
+				if (selectedTime < minTimeForTomorrow) {
+					setTime(format(minTimeForTomorrow, "HH:mm")); // Ustaw minimalną godzinę
+					setDate(minTimeForTomorrow); // Ustaw również datę na dzień następny
+				}
+			} else {
+				// Jeśli jest obecny dzień, ustal minimalną godzinę na 1 godzinę do przodu
+				const minTimeForToday = addHours(currentTime, 1);
+				if (selectedTime < minTimeForToday) {
+					setTime(format(minTimeForToday, "HH:mm")); // Ustaw minimalną godzinę
+				}
 			}
 		}
 	}, [date, time]);
@@ -728,12 +748,45 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 						</div>
 					</div>
 
+					{isEditMode && (
+						<div className="space-y-2 mt-4">
+							<div className="flex items-center gap-2">
+								<Switch
+									id="canEditDateTime"
+									checked={canEditDateTime}
+									onCheckedChange={setCanEditDateTime}
+									disabled={
+										new Date() >
+											new Date(eventToEdit.date) || // Data jest późniejsza
+										(new Date().toDateString() ===
+											new Date(
+												eventToEdit.date
+											).toDateString() &&
+											new Date(eventToEdit.time) <
+												new Date()) // Data jest taka sama, ale czas wcześniejszy
+									}
+								/>
+								<Label htmlFor="canEditDateTime">
+									Chcę dostosować terminy wydarzenia (nie
+									można edytować czasu wydarzenia, w trakcie
+									jego trwania)
+								</Label>
+							</div>
+						</div>
+					)}
+
 					<div className="space-y-4">
 						<div className="space-y-2">
 							<Label>Data rozpoczęcia</Label>
 							<Calendar
 								mode="single"
-								selected={date}
+								selected={
+									isEditMode
+										? canEditDateTime
+											? date
+											: eventToEdit.date
+										: date
+								}
 								onSelect={(newDate) => {
 									if (newDate) {
 										setDate(newDate);
@@ -753,9 +806,20 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								locale={pl}
 								className="rounded-md border w-full"
 								required
-								disabled={(date) =>
-									isBefore(date, new Date()) && !isToday(date)
-								}
+								disabled={(date) => {
+									const now = new Date();
+									const nextHour = addHours(now, 1);
+									const isInLastHour =
+										isToday(date) &&
+										isAfter(nextHour, endOfDay(now));
+
+									return (
+										(isBefore(date, new Date()) &&
+											!isToday(date)) ||
+										isInLastHour ||
+										(isEditMode && !canEditDateTime)
+									);
+								}}
 								classNames={{
 									months: "w-full",
 									month: "w-full",
@@ -784,7 +848,13 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 							<Label>Godzina rozpoczęcia</Label>
 							<Input
 								type="time"
-								value={time}
+								value={
+									isEditMode
+										? canEditDateTime
+											? time
+											: eventToEdit.time
+										: time
+								}
 								onChange={(e) => setTime(e.target.value)}
 								className="w-auto focus:ring-black focus:border-black"
 								min={
@@ -797,6 +867,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 										: undefined
 								}
 								required
+								disabled={isEditMode && !canEditDateTime}
 							/>
 						</div>
 					</div>
