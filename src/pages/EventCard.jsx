@@ -22,6 +22,7 @@ import {
 	limit,
 	startAfter,
 	increment,
+	orderBy,
 } from "firebase/firestore";
 import {
 	eventMeetsUserPreferences,
@@ -32,6 +33,8 @@ import {
 	getCoordinates,
 	calculateTimeLeft,
 	getTimeLeftColor,
+	eventMeetsDateCriteria,
+	eventMeetsPersonLimitCriteria,
 } from "@/lib/event-functions";
 import EventCardStack from "@/components/ui/CardStack";
 import { CardView } from "./CardView";
@@ -113,8 +116,7 @@ export default function EventCard() {
 				while (finalEvents.length < totalLimit) {
 					let q = query(
 						eventsRef,
-						where("date", ">=", new Date().toISOString()),
-						where("ended", "!=", true)
+						where("endDate", ">=", new Date().toISOString())
 					);
 
 					if (lastVisible) {
@@ -138,15 +140,36 @@ export default function EventCard() {
 					}));
 
 					// filtracja wydarzeń
-					const filteredEvents = allEvents.filter(
-						(eventData) =>
+					const filteredEvents = allEvents.filter((eventData) => {
+						const isNotEnded = !eventData.ended;
+						const matchesLateJoinPreference =
+							userData.preferences.searchOngoingEvents ||
+							!eventData.allowLateJoin;
+
+						// Apply all filters here
+						return (
+							isNotEnded &&
+							matchesLateJoinPreference &&
 							!excludedEventIds.includes(eventData.id) &&
 							eventData.creator !== user.uid &&
 							(eventData.capacity === -1 ||
 								eventData.participants.length <
 									eventData.capacity) &&
-							!eventData.ended
-					);
+							eventMeetsUserPreferences(
+								eventData,
+								userData.preferences,
+								userData
+							) &&
+							eventMeetsDateCriteria(
+								eventData,
+								userData.preferences
+							) &&
+							eventMeetsPersonLimitCriteria(
+								eventData,
+								userData.preferences
+							)
+						);
+					});
 
 					// Preferencje
 					let userLat = userData.lat;
@@ -176,16 +199,6 @@ export default function EventCard() {
 							eventData.lng
 						);
 						if (distance > radius) continue;
-
-						if (
-							userData.preferences.searchByDate &&
-							!eventMeetsUserPreferences(
-								eventData,
-								userData.preferences
-							)
-						) {
-							continue;
-						}
 
 						const creatorName = await fetchCreatorName(
 							eventData.creator
@@ -553,7 +566,6 @@ export default function EventCard() {
 								onDislike={handleDislikeEvent}
 								getTimeLeftColor={getTimeLeftColor}
 								onClose={closeCardView}
-								uName={userData?.name}
 							/>
 						</motion.div>
 					)}

@@ -45,7 +45,6 @@ export function CardView({
 	onClose,
 	isOtherPage = false,
 	onEdit,
-	uName,
 }) {
 	const [touchStart, setTouchStart] = useState(null);
 	const [touchEnd, setTouchEnd] = useState(null);
@@ -278,7 +277,7 @@ export function CardView({
 									</div>
 								</div>
 								<p className="text-white text-sm mt-2">
-									Utworzone przez: {uName}
+									Utworzone przez: {event.creatorName}
 								</p>
 								<div className="flex items-center text-white text-sm mt-2">
 									<MapPin className="w-4 h-4 mr-1" />
@@ -496,6 +495,22 @@ function MoreOptionsMenu({ event, onEdit }) {
 					</div>
 				)}
 			</div>
+			{showReportForm && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 z-1000 flex items-center justify-center">
+					<div
+						className="bg-white p-6 rounded-lg"
+						style={{ width: "calc(100% - 40px)" }}
+					>
+						<h2 className="text-xl font-bold mb-4">
+							Zgłoś wydarzenie
+						</h2>
+						<ReportForm
+							eventId={event.id}
+							onClose={() => setShowReportForm(false)}
+						/>
+					</div>
+				</div>
+			)}
 		</>
 	);
 }

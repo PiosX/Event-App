@@ -138,6 +138,7 @@ export function PreferencesPanel({
 	const [searchByDate, setSearchByDate] = useState(false);
 	const [startDate, setStartDate] = useState("");
 	const [endDate, setEndDate] = useState("");
+	const [searchOngoingEvents, setSearchOngoingEvents] = useState(true);
 	const searchInputRef = useRef(null);
 
 	useEffect(() => {
@@ -165,6 +166,9 @@ export function PreferencesPanel({
 					setSearchByDate(preferences.searchByDate || false);
 					setStartDate(preferences.startDate || "");
 					setEndDate(preferences.endDate || "");
+					setSearchOngoingEvents(
+						preferences.searchOngoingEvents !== false
+					); // Added line to load new preference
 				}
 			} catch (error) {
 				console.error("Nie udało się pozyskać preferencji:", error);
@@ -213,6 +217,7 @@ export function PreferencesPanel({
 			searchByDate,
 			startDate,
 			endDate,
+			searchOngoingEvents,
 		};
 
 		setUserPreferences(newPreferences);
@@ -388,6 +393,16 @@ export function PreferencesPanel({
 							</div>
 						</div>
 					)}
+					<div className="flex items-center space-x-2">
+						<Checkbox
+							id="searchOngoingEvents"
+							checked={searchOngoingEvents}
+							onCheckedChange={setSearchOngoingEvents}
+						/>
+						<Label htmlFor="searchOngoingEvents">
+							Szukaj wydarzeń już trwających
+						</Label>
+					</div>
 					<div className="flex items-center space-x-2">
 						<Checkbox
 							id="meetRequirements"

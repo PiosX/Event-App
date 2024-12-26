@@ -694,7 +694,6 @@ export function MyEvents() {
 								formatTimeLeft={formatTimeLeft}
 								isOtherPage={true}
 								forceEnableToday={true}
-								uName={userData?.name}
 							/>
 						</motion.div>
 					)}

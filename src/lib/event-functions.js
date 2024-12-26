@@ -3,6 +3,7 @@ import {
 	parseISO,
 	differenceInMilliseconds,
 	differenceInHours,
+	isWithinInterval,
 } from "date-fns";
 import {
 	collection,
@@ -103,18 +104,18 @@ export async function getCoordinates(addresses) {
 	return results;
 }
 
-export function eventMeetsUserPreferences(eventData, userPreferences) {
+export function eventMeetsUserPreferences(eventData, userPreferences, user) {
 	if (
 		userPreferences.meetRequirements &&
 		eventData.requirements &&
 		!eventData.requirements.none
 	) {
 		// Age requirement
-		if (eventData.requirements.age && userPreferences.age) {
+		if (eventData.requirements.age && user.age) {
 			const [minAge, maxAge] = eventData.requirements.age
 				.split("-")
 				.map(Number);
-			if (userPreferences.age < minAge || userPreferences.age > maxAge) {
+			if (user.age < minAge || user.age > maxAge) {
 				return false;
 			}
 		}
@@ -122,8 +123,8 @@ export function eventMeetsUserPreferences(eventData, userPreferences) {
 		// Gender requirement
 		if (
 			eventData.requirements.gender &&
-			userPreferences.gender &&
-			eventData.requirements.gender !== userPreferences.gender
+			user.gender &&
+			eventData.requirements.gender !== user.gender
 		) {
 			return false;
 		}
@@ -131,30 +132,21 @@ export function eventMeetsUserPreferences(eventData, userPreferences) {
 		// Location requirement
 		if (
 			eventData.requirements.location &&
-			userPreferences.location &&
-			eventData.requirements.location !== userPreferences.location
+			user.location &&
+			eventData.requirements.location !== user.location
 		) {
 			return false;
 		}
-	}
-
-	// Person limit
-	if (
-		userPreferences.usePersonLimit &&
-		eventData.capacity !== -1 &&
-		eventData.capacity > userPreferences.personLimit
-	) {
-		return false;
 	}
 
 	// Interests
 	if (
 		userPreferences.interests &&
 		userPreferences.interests.length > 0 &&
-		eventData.interests
+		eventData.selectedCategories
 	) {
 		if (
-			!eventData.interests.some((interest) =>
+			!eventData.selectedCategories.some((interest) =>
 				userPreferences.interests.includes(interest)
 			)
 		) {
@@ -163,6 +155,30 @@ export function eventMeetsUserPreferences(eventData, userPreferences) {
 	}
 
 	return true;
+}
+
+export function eventMeetsDateCriteria(eventData, userPreferences) {
+	if (!userPreferences.searchByDate) {
+		return true; // If not searching by date, all events meet criteria
+	}
+
+	const eventDate = parseISO(eventData.date);
+	const startDate = parseISO(userPreferences.startDate);
+	const endDate = parseISO(userPreferences.endDate);
+
+	return isWithinInterval(eventDate, { start: startDate, end: endDate });
+}
+
+export function eventMeetsPersonLimitCriteria(eventData, userPreferences) {
+	if (!userPreferences.usePersonLimit) {
+		return true; // If not using person limit, all events meet criteria
+	}
+
+	if (eventData.capacity === -1) {
+		return false; // Exclude events with no limit if user wants a limit
+	}
+
+	return eventData.capacity <= userPreferences.personLimit;
 }
 
 export async function calculateEventDistance(
@@ -340,9 +356,8 @@ export const calculateEventDuration = (startDate, endDate) => {
 	return differenceInHours(end, start);
 };
 
-
 export const getHourWord = (hours) => {
-    if (hours === 1) return "godzina";
-    if (hours >= 2 && hours <= 4) return "godziny";
-    return "godzin";
+	if (hours === 1) return "godzina";
+	if (hours >= 2 && hours <= 4) return "godziny";
+	return "godzin";
 };
