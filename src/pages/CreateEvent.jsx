@@ -45,7 +45,7 @@ import {
 	deleteObject,
 } from "firebase/storage";
 import { processImage } from "@/lib/process-image";
-import { getCoordinates } from "@/lib/event-functions";
+import { getCoordinates, fetchCreatorName } from "@/lib/event-functions";
 import animationData from "../assets/animation-createdEvent.json";
 import Lottie from "lottie-react";
 import { motion } from "framer-motion";
@@ -196,6 +196,9 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 	const [customDuration, setCustomDuration] = useState(false);
 	const [endDate, setEndDate] = useState(new Date());
 	const [endTime, setEndTime] = useState("");
+	const [initialDate, setInitialDate] = useState(null);
+	const [initialTime, setInitialTime] = useState(null);
+	const [isEditMode, setIsEditMode] = useState(!!eventToEdit);
 
 	const navigate = useNavigate();
 	const storage = getStorage();
@@ -229,6 +232,8 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			setIsUnlimited(eventToEdit.capacity === -1);
 			setDate(new Date(eventToEdit.date));
 			setTime(eventToEdit.time);
+			setInitialDate(new Date(eventToEdit.date));
+			setInitialTime(eventToEdit.time);
 			setStreet(eventToEdit.street);
 			setCity(eventToEdit.city);
 			setRequirements(eventToEdit.requirements || {});
@@ -241,6 +246,11 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 			if (eventToEdit.endTime) {
 				setEndTime(eventToEdit.endTime);
 			}
+		} else {
+			setDate(new Date());
+			setTime(format(addHours(new Date(), 1), "HH:mm"));
+			setInitialDate(null);
+			setInitialTime(null);
 		}
 	}, [eventToEdit]);
 
@@ -421,7 +431,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				ended: false,
 			};
 
-			if (isEditing) {
+			if (isEditMode) {
 				if (
 					street !== eventToEdit.street ||
 					city !== eventToEdit.city
@@ -442,6 +452,23 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 					eventData.city = city.trim();
 					eventData.lat = lat;
 					eventData.lng = lng;
+				} else {
+					eventData.street = eventToEdit.street;
+					eventData.city = eventToEdit.city;
+					eventData.lat = eventToEdit.lat;
+					eventData.lng = eventToEdit.lng;
+				}
+
+				// Only update date and time if they've changed
+				if (eventToEdit.date !== eventData.date) {
+					//Do nothing, date will be updated
+				} else {
+					delete eventData.date;
+				}
+				if (eventToEdit.time !== eventData.time) {
+					//Do nothing, time will be updated
+				} else {
+					delete eventData.time;
 				}
 
 				await updateDoc(doc(db, "events", eventToEdit.id), eventData);
@@ -467,6 +494,10 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				eventData.disliked = 0;
 				eventData.liked = 0;
 				eventData.reported = 0;
+
+				// Fetch creator name
+				const creatorName = await fetchCreatorName(user);
+				eventData.creatorName = creatorName;
 
 				const eventRef = await addDoc(
 					collection(db, "events"),
@@ -703,16 +734,28 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 							<Calendar
 								mode="single"
 								selected={date}
-								onSelect={setDate}
+								onSelect={(newDate) => {
+									if (newDate) {
+										setDate(newDate);
+										if (
+											!initialDate ||
+											!isToday(initialDate)
+										) {
+											setTime(
+												format(
+													addHours(newDate, 1),
+													"HH:mm"
+												)
+											);
+										}
+									}
+								}}
 								locale={pl}
 								className="rounded-md border w-full"
 								required
-								disabled={(date) => {
-									return (
-										isBefore(date, new Date()) &&
-										!isToday(date)
-									);
-								}}
+								disabled={(date) =>
+									isBefore(date, new Date()) && !isToday(date)
+								}
 								classNames={{
 									months: "w-full",
 									month: "w-full",
@@ -745,7 +788,8 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								onChange={(e) => setTime(e.target.value)}
 								className="w-auto focus:ring-black focus:border-black"
 								min={
-									isToday(date)
+									isToday(date) &&
+									(!initialDate || !isToday(initialDate))
 										? format(
 												addHours(new Date(), 1),
 												"HH:mm"

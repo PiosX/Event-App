@@ -222,10 +222,12 @@ export function CardView({
 									)}
 							</div>
 							<div className="absolute bottom-4 right-4 z-10">
-								<MoreOptionsMenu
-									event={event}
-									onEdit={onEdit}
-								/>
+								{!event.ended && (
+									<MoreOptionsMenu
+										event={event}
+										onEdit={onEdit}
+									/>
+								)}
 							</div>
 							<div className="absolute bottom-0 left-0 right-0 p-6">
 								<h2 className="text-white text-3xl font-bold mb-2">
