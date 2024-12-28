@@ -4,14 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { db, auth } from "../firebaseConfig";
 import { useEffect, useState, useCallback } from "react";
-import {
-	collection,
-	query,
-	where,
-	getDocs,
-	doc,
-	updateDoc,
-} from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { Edit, Plus, X } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -199,31 +192,26 @@ export default function UserProfile() {
 				}
 
 				// jeśli nie ma w local storage pobieramy z bazy
-				const q = query(
-					collection(db, "users"),
-					where("uid", "==", userId)
-				);
-				const querySnapshot = await getDocs(q);
+				const userDocRef = doc(db, "users", userId);
+				const userDoc = await getDoc(userDocRef);
 
-				if (!querySnapshot.empty) {
-					querySnapshot.forEach((doc) => {
-						const data = doc.data();
-						setUserData(data);
-						setEditFormData({
-							name: data.name || "",
-							age: data.age || "",
-							gender: data.gender || "",
-							street: data.street || "",
-							city: data.city || "",
-							description: data.description || "",
-						});
-						setSelectedInterests(data.interests || []);
-
-						localStorage.setItem(
-							`userData_${userId}`,
-							JSON.stringify(data)
-						);
+				if (userDoc.exists()) {
+					const data = userDoc.data();
+					setUserData(data);
+					setEditFormData({
+						name: data.name || "",
+						age: data.age || "",
+						gender: data.gender || "",
+						street: data.street || "",
+						city: data.city || "",
+						description: data.description || "",
 					});
+					setSelectedInterests(data.interests || []);
+
+					localStorage.setItem(
+						`userData_${userId}`,
+						JSON.stringify(data)
+					);
 				} else {
 					navigate(`/profile/${currentUserId}`);
 				}
@@ -361,28 +349,17 @@ export default function UserProfile() {
 				profileImage: imageUrl,
 			};
 
-			const userQuery = query(
-				collection(db, "users"),
-				where("uid", "==", currentUserId)
+			await updateDoc(doc(db, "users", currentUserId), updatedUserData);
+
+			localStorage.setItem(
+				`userData_${currentUserId}`,
+				JSON.stringify(updatedUserData)
 			);
-			const querySnapshot = await getDocs(userQuery);
 
-			if (!querySnapshot.empty) {
-				const userDoc = querySnapshot.docs[0];
-				await updateDoc(doc(db, "users", userDoc.id), updatedUserData);
-
-				localStorage.setItem(
-					`userData_${currentUserId}`,
-					JSON.stringify(updatedUserData)
-				);
-
-				setUserData(updatedUserData);
-				setIsEditMode(false);
-			} else {
-				throw new Error("User document not found");
-			}
+			setUserData(updatedUserData);
+			setIsEditMode(false);
 		} catch (error) {
-			console.error("Błąd aktualizacji profilu:", error);
+			console.error("Error updating profile:", error);
 		} finally {
 			setLoading(false);
 		}

@@ -45,7 +45,7 @@ import {
 	deleteObject,
 } from "firebase/storage";
 import { processImage } from "@/lib/process-image";
-import { getCoordinates, fetchCreatorName } from "@/lib/event-functions";
+import { getCoordinates } from "@/lib/event-functions";
 import animationData from "../assets/animation-createdEvent.json";
 import Lottie from "lottie-react";
 import { motion } from "framer-motion";
@@ -433,6 +433,8 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				image: imageUrl,
 				ended: false,
 				lastEditTime: new Date().toISOString(),
+				creator: user,
+				creatorName: userData.name, // Updated line
 			};
 
 			if (isEditMode) {
@@ -493,10 +495,6 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				eventData.disliked = 0;
 				eventData.liked = 0;
 				eventData.reported = 0;
-
-				// Fetch creator name
-				const creatorName = await fetchCreatorName(user);
-				eventData.creatorName = creatorName;
 
 				const eventRef = await addDoc(
 					collection(db, "events"),
@@ -726,7 +724,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								id="capacity"
 								type="number"
 								min="2"
-								max="100000"
+								max="1000"
 								placeholder="Wprowadź liczbę miejsc"
 								value={isUnlimited ? "" : capacity}
 								onChange={(e) => setCapacity(e.target.value)}

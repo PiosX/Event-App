@@ -22,11 +22,9 @@ import {
 	limit,
 	startAfter,
 	increment,
-	orderBy,
 } from "firebase/firestore";
 import {
 	eventMeetsUserPreferences,
-	fetchCreatorName,
 	fetchParticipantImages,
 	updateChatParticipants,
 	calculateDistance,
@@ -64,15 +62,13 @@ export default function EventCard() {
 			throw new Error("Użytkownik nie jest zalogowany");
 		}
 
-		const usersRef = collection(db, "users");
-		const q = query(usersRef, where("uid", "==", user.uid));
-		const querySnapshot = await getDocs(q);
+		const userDocRef = doc(db, "users", user.uid);
+		const userDoc = await getDoc(userDocRef);
 
-		if (querySnapshot.empty) {
-			throw new Error("Nie znaleziono danych użytkownika");
+		if (userDoc.exists()) {
+			const userData = userDoc.data();
+			setUserData(userData);
 		}
-		const userData = querySnapshot.docs[0].data();
-		setUserData(userData);
 	}, []);
 
 	const fetchEvents = useCallback(
@@ -200,16 +196,12 @@ export default function EventCard() {
 						);
 						if (distance > radius) continue;
 
-						const creatorName = await fetchCreatorName(
-							eventData.creator
-						);
 						const participantImages = await fetchParticipantImages(
 							eventData.participants
 						);
 
 						finalEvents.push({
 							...eventData,
-							creatorName,
 							distance,
 							participantImages:
 								participantImages.filter(Boolean),

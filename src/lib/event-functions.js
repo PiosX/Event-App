@@ -211,17 +211,6 @@ export async function calculateEventDistance(
 	return distance; // Zwróć obliczony dystans
 }
 
-export async function fetchCreatorName(creatorId) {
-	const creatorQuery = query(
-		collection(db, "users"),
-		where("uid", "==", creatorId)
-	);
-	const creatorSnapshot = await getDocs(creatorQuery);
-	return !creatorSnapshot.empty
-		? creatorSnapshot.docs[0].data().name
-		: "Nieznany";
-}
-
 export async function fetchParticipantImages(participantIds) {
 	return await Promise.all(
 		participantIds.map(async (uid) => {

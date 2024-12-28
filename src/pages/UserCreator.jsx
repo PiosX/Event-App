@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebaseConfig";
-import { collection, addDoc, doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -446,10 +446,10 @@ export default function UserCreator() {
 		}
 
 		try {
-			const userDocRef = await addDoc(collection(db, "users"), userData);
+			const userDocRef = doc(db, "users", user);
+			await setDoc(userDocRef, userData);
 			const imageUrl = await uploadImage(croppedImage);
-			await setDoc(doc(db, "users", userDocRef.id), {
-				...userData,
+			await updateDoc(userDocRef, {
 				profileImage: imageUrl,
 			});
 
