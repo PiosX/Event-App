@@ -1,18 +1,14 @@
 import {
 	format,
 	parseISO,
-	differenceInMilliseconds,
 	differenceInHours,
 	isWithinInterval,
 } from "date-fns";
 import {
-	collection,
-	query,
-	where,
-	getDocs,
 	doc,
 	updateDoc,
 	arrayUnion,
+	getDoc,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
@@ -214,25 +210,18 @@ export async function calculateEventDistance(
 export async function fetchParticipantImages(participantIds) {
 	return await Promise.all(
 		participantIds.map(async (uid) => {
-			const participantQuery = query(
-				collection(db, "users"),
-				where("uid", "==", uid)
-			);
-			const participantSnapshot = await getDocs(participantQuery);
-			return !participantSnapshot.empty
-				? participantSnapshot.docs[0].data().profileImage
+			const participantDoc = await getDoc(doc(db, "users", uid));
+			return participantDoc.exists()
+				? participantDoc.data().profileImage
 				: null;
 		})
 	);
 }
 
 export async function updateChatParticipants(eventId, userId) {
-	const usersRef = collection(db, "users");
-	const userQuery = query(usersRef, where("uid", "==", userId));
-	const userDocs = await getDocs(userQuery);
+	const userDoc = await getDoc(doc(db, "users", userId));
 
-	if (!userDocs.empty) {
-		const userDoc = userDocs.docs[0];
+	if (userDoc.exists()) {
 		const userData = userDoc.data();
 		const participantData = {
 			id: userId,
@@ -315,14 +304,6 @@ export const formatTimeLeft = (timeLeft) => {
 		minutes
 	)}:${formatNumber(seconds)}`;
 };
-
-function formatDuration(duration) {
-	if (duration.days > 0)
-		return `${duration.days} ${duration.days === 1 ? "dzień" : "dni"}`;
-	return `${String(duration.hours).padStart(2, "0")}:${String(
-		duration.minutes
-	).padStart(2, "0")}:${String(duration.seconds).padStart(2, "0")}`;
-}
 
 export const getCurrentTime = () => {
 	const now = new Date();

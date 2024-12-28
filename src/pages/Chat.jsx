@@ -436,15 +436,12 @@ function ConversationItem({ conversation, onClick, isEven, currentUserId }) {
 				conversation.lastMessage &&
 				conversation.lastMessage.senderId !== currentUserId
 			) {
-				const usersQuery = query(
-					collection(db, "users"),
-					where("uid", "==", conversation.lastMessage.senderId)
+				const userDoc = await getDoc(
+					doc(db, "users", conversation.lastMessage.senderId)
 				);
 
-				const userSnapshot = await getDocs(usersQuery);
-
-				if (!userSnapshot.empty) {
-					const userData = userSnapshot.docs[0].data();
+				if (userDoc.exists()) {
+					const userData = userDoc.data();
 					setSenderName(userData.name);
 				}
 			}

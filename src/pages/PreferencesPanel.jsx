@@ -12,6 +12,8 @@ import {
 	where,
 	getDocs,
 	updateDoc,
+	doc,
+	getDoc,
 } from "firebase/firestore";
 
 const interests = [
@@ -149,12 +151,10 @@ export function PreferencesPanel({
 		const user = auth.currentUser;
 		if (user) {
 			try {
-				const usersRef = collection(db, "users");
-				const q = query(usersRef, where("uid", "==", user.uid));
-				const querySnapshot = await getDocs(q);
+				const userDoc = await getDoc(doc(db, "users", user.uid));
 
-				if (!querySnapshot.empty) {
-					const userData = querySnapshot.docs[0].data();
+				if (userDoc.exists()) {
+					const userData = userDoc.data();
 					const preferences = userData.preferences || {};
 
 					setSelectedInterests(preferences.interests || []);
@@ -168,7 +168,7 @@ export function PreferencesPanel({
 					setEndDate(preferences.endDate || "");
 					setSearchOngoingEvents(
 						preferences.searchOngoingEvents !== false
-					); // Added line to load new preference
+					);
 				}
 			} catch (error) {
 				console.error("Nie udało się pozyskać preferencji:", error);
@@ -225,18 +225,10 @@ export function PreferencesPanel({
 		const user = auth.currentUser;
 		if (user) {
 			try {
-				const usersRef = collection(db, "users");
-				const q = query(usersRef, where("uid", "==", user.uid));
-				const querySnapshot = await getDocs(q);
-
-				if (!querySnapshot.empty) {
-					const userDoc = querySnapshot.docs[0];
-					await updateDoc(userDoc.ref, {
-						preferences: newPreferences,
-					});
-				} else {
-					console.error("Nie znaleziono danych");
-				}
+				const userRef = doc(db, "users", user.uid);
+				await updateDoc(userRef, {
+					preferences: newPreferences,
+				});
 			} catch (error) {
 				console.error("Nie udało się zapisać preferencji:", error);
 			}

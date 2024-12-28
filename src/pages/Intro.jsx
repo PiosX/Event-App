@@ -11,7 +11,7 @@ import {
 	signInWithPopup,
 	GoogleAuthProvider,
 } from "firebase/auth";
-import { doc, getDocs, collection, query, where } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
 export default function Intro() {
@@ -33,13 +33,9 @@ export default function Intro() {
 			const user = userCredential.user;
 
 			if (user.uid) {
-				const q = query(
-					collection(db, "users"),
-					where("uid", "==", user.uid)
-				);
-				const querySnapshot = await getDocs(q);
+				const userDoc = await getDoc(doc(db, "users", user.uid));
 
-				if (!querySnapshot.empty) {
+				if (userDoc.exists()) {
 					navigate(`/profile/${user.uid}`);
 				} else {
 					navigate("/create-user");
@@ -60,13 +56,9 @@ export default function Intro() {
 			const user = result.user;
 
 			if (user.uid) {
-				const q = query(
-					collection(db, "users"),
-					where("uid", "==", user.uid)
-				);
-				const querySnapshot = await getDocs(q);
+				const userDoc = await getDoc(doc(db, "users", user.uid));
 
-				if (!querySnapshot.empty) {
+				if (userDoc.exists()) {
 					navigate(`/profile/${user.uid}`);
 				} else {
 					navigate("/create-user");

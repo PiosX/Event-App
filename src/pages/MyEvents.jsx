@@ -123,12 +123,8 @@ export function MyEvents() {
 		if (!user) return;
 
 		try {
-			const usersRef = collection(db, "users");
-			const q = query(usersRef, where("uid", "==", user.uid));
-			const querySnapshot = await getDocs(q);
-
-			if (!querySnapshot.empty) {
-				const userDoc = querySnapshot.docs[0];
+			const userDoc = await getDoc(doc(db, "users", user.uid));
+			if (userDoc.exists()) {
 				setUserData(userDoc.data());
 			} else {
 				console.error("Brak dokumentu użytkownika");
@@ -161,27 +157,20 @@ export function MyEvents() {
 						);
 						if (eventDoc.exists() && !eventDoc.data().ended) {
 							const eventData = eventDoc.data();
-							const creatorQuery = query(
-								collection(db, "users"),
-								where("uid", "==", eventData.creator)
+							const creatorDoc = await getDoc(
+								doc(db, "users", eventData.creator)
 							);
-							const creatorSnapshot = await getDocs(creatorQuery);
-							const creatorName = !creatorSnapshot.empty
-								? creatorSnapshot.docs[0].data().name
+							const creatorName = creatorDoc.exists()
+								? creatorDoc.data().name
 								: "Nieznany";
 
 							const participantImages = await Promise.all(
 								eventData.participants.map(async (uid) => {
-									const participantQuery = query(
-										collection(db, "users"),
-										where("uid", "==", uid)
+									const participantDoc = await getDoc(
+										doc(db, "users", uid)
 									);
-									const participantSnapshot = await getDocs(
-										participantQuery
-									);
-									return !participantSnapshot.empty
-										? participantSnapshot.docs[0].data()
-												.profileImage
+									return participantDoc.exists()
+										? participantDoc.data().profileImage
 										: null;
 								})
 							);
@@ -219,20 +208,15 @@ export function MyEvents() {
 				);
 				const querySnapshot = await getDocs(q);
 				fetchedEvents = await Promise.all(
-					querySnapshot.docs.map(async (doc) => {
-						const eventData = doc.data();
+					querySnapshot.docs.map(async (docSnapshot) => {
+						const eventData = docSnapshot.data();
 						const participantImages = await Promise.all(
 							eventData.participants.map(async (uid) => {
-								const participantQuery = query(
-									collection(db, "users"),
-									where("uid", "==", uid)
+								const participantDoc = await getDoc(
+									doc(db, "users", uid)
 								);
-								const participantSnapshot = await getDocs(
-									participantQuery
-								);
-								return !participantSnapshot.empty
-									? participantSnapshot.docs[0].data()
-											.profileImage
+								return participantDoc.exists()
+									? participantDoc.data().profileImage
 									: null;
 							})
 						);
@@ -247,7 +231,7 @@ export function MyEvents() {
 						const timeLeft = calculateTimeLeft(eventData.date);
 
 						return {
-							id: doc.id,
+							id: docSnapshot.id,
 							...eventData,
 							participantImages:
 								participantImages.filter(Boolean),
@@ -342,12 +326,9 @@ export function MyEvents() {
 				participants: arrayUnion(user.uid),
 			});
 
-			const usersRef = collection(db, "users");
-			const userQuery = query(usersRef, where("uid", "==", user.uid));
-			const userDocs = await getDocs(userQuery);
+			const userDoc = await getDoc(doc(db, "users", user.uid));
 
-			if (!userDocs.empty) {
-				const userDoc = userDocs.docs[0];
+			if (userDoc.exists()) {
 				const userData = userDoc.data();
 				const participantData = {
 					id: user.uid,
