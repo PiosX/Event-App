@@ -67,6 +67,7 @@ export function MyEvents() {
 	const [editingEvent, setEditingEvent] = useState(null); // Added state for editing event
 	const [showNotification, setShowNotification] = useState(false);
 	const [notificationType, setNotificationType] = useState("success");
+	const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false); // Added state for delete confirmation
 	const mapping = {
 		gender: "Płeć",
 		age: "Wiek",
@@ -374,20 +375,28 @@ export function MyEvents() {
 		}
 	};
 
-	const handleDeleteEvent = async (eventId) => {
-		try {
-			await deleteDoc(doc(db, "events", eventId));
-			await deleteDoc(doc(db, "chats", eventId));
+	const handleDeleteEvent = (eventId) => {
+		setSelectedEventId(eventId);
+		setShowDeleteConfirmation(true);
+	};
 
-			setEvents((prevEvents) => ({
-				...prevEvents,
-				created: prevEvents.created.filter(
-					(event) => event.id !== eventId
-				),
-			}));
-			setSelectedEventId(null);
-		} catch (error) {
-			console.error("Nie udało się usunąć wydarzenia:", error);
+	const confirmDeleteEvent = async () => {
+		if (selectedEventId) {
+			try {
+				await deleteDoc(doc(db, "events", selectedEventId));
+				await deleteDoc(doc(db, "chats", selectedEventId));
+
+				setEvents((prevEvents) => ({
+					...prevEvents,
+					created: prevEvents.created.filter(
+						(event) => event.id !== selectedEventId
+					),
+				}));
+				setSelectedEventId(null);
+				setShowDeleteConfirmation(false);
+			} catch (error) {
+				console.error("Nie udało się usunąć wydarzenia:", error);
+			}
 		}
 	};
 
@@ -749,6 +758,33 @@ export function MyEvents() {
 					</motion.div>
 				)}
 			</AnimatePresence>
+			{showDeleteConfirmation && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+					<div className="bg-white p-6 rounded-lg max-w-sm w-full mx-5">
+						<h2 className="text-xl font-bold mb-4">
+							Czy na pewno chcesz usunąć wydarzenie?
+						</h2>
+						<p className="mb-6">
+							Ta akcja jest nieodwracalna. Wydarzenie zostanie
+							trwale usunięte.
+						</p>
+						<div className="flex justify-end space-x-4">
+							<button
+								className="px-4 py-2 bg-gray-200 rounded-md"
+								onClick={() => setShowDeleteConfirmation(false)}
+							>
+								Anuluj
+							</button>
+							<button
+								className="px-4 py-2 bg-red-500 text-white rounded-md"
+								onClick={confirmDeleteEvent}
+							>
+								Usuń
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

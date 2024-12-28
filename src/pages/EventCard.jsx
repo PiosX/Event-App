@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CreditCard, List, Settings, FrownIcon, Clock } from "lucide-react";
+import { CreditCard, List, FrownIcon, SlidersVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import Lottie from "lottie-react";
@@ -517,7 +517,7 @@ export default function EventCard() {
 							size="icon"
 							onClick={() => setShowPreferences(!showPreferences)}
 						>
-							<Settings className="w-5 h-5" />
+							<SlidersVertical className="w-5 h-5" />
 						</Button>
 					</div>
 				</div>

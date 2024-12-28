@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Bell, SlidersHorizontal } from "lucide-react";
 import logo from "../../assets/logo.svg";
+import { Notifications } from "../Notifications";
 
 export default function TopNavBar({ onSettingsClick }) {
 	return (
@@ -11,9 +12,7 @@ export default function TopNavBar({ onSettingsClick }) {
 					<span className="font-bold text-base">NazwaApp</span>
 				</div>
 				<div className="flex items-center space-x-2">
-					<Button variant="ghost" size="icon" className="h-9 w-9">
-						<Bell className="w-5 h-5" />
-					</Button>
+					<Notifications />
 					<Button
 						variant="ghost"
 						size="icon"

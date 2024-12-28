@@ -432,6 +432,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 				requirements,
 				image: imageUrl,
 				ended: false,
+				lastEditTime: new Date().toISOString(),
 			};
 
 			if (isEditMode) {
