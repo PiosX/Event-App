@@ -4,18 +4,32 @@ import { pl } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const SingleRowCalendar = ({ startDate, onSelectDate, selectedDate }) => {
+const SingleRowCalendar = ({
+	startDate,
+	onSelectDate,
+	selectedDate,
+	startTime,
+}) => {
 	const [currentWeek, setCurrentWeek] = useState([]);
 
 	useEffect(() => {
-		const week = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
+		const [hours] = startTime.split(":").map(Number);
+		const isLateNightEvent = hours >= 22;
+		const startIndex = isLateNightEvent ? 1 : 0;
+		const week = Array.from({ length: 7 }, (_, i) =>
+			addDays(startDate, i + startIndex)
+		);
 		setCurrentWeek(week);
-	}, [startDate]);
+	}, [startDate, startTime]);
 
 	const handlePrevWeek = (e) => {
 		e.preventDefault();
 		e.stopPropagation();
-		setCurrentWeek((prev) => prev.map((date) => addDays(date, -7)));
+		const [hours] = startTime.split(":").map(Number);
+		const isLateNightEvent = hours >= 22;
+		setCurrentWeek((prev) =>
+			prev.map((date) => addDays(date, isLateNightEvent ? -6 : -7))
+		);
 	};
 
 	const handleNextWeek = (e) => {

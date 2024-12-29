@@ -58,6 +58,11 @@ import {
 	format,
 	endOfDay,
 	addDays,
+	differenceInMinutes,
+	startOfDay,
+	addMinutes,
+	setHours,
+	setMinutes,
 } from "date-fns";
 import { getCurrentTime } from "@/lib/event-functions";
 import SingleRowCalendar from "@/components/ui/SingleRowCalendar";
@@ -540,61 +545,74 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 		if (date && time) {
 			const eventDateTime = new Date(date);
 			const [hours, minutes] = time.split(":");
-			eventDateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+			eventDateTime.setHours(
+				parseInt(hours, 10),
+				parseInt(minutes, 10),
+				0,
+				0
+			);
+
+			const now = new Date();
+			const minStartTime = addHours(now, 1);
+
+			if (isToday(date) && eventDateTime < minStartTime) {
+				setTime(format(minStartTime, "HH:mm"));
+			}
 
 			if (!customDuration) {
-				const endDateTime = new Date(eventDateTime);
-				endDateTime.setHours(endDateTime.getHours() + 1);
+				const endDateTime = addHours(eventDateTime, 1);
 				setEndDate(endDateTime);
 				setEndTime(format(endDateTime, "HH:mm"));
-			}
-		}
-	}, [date, time, customDuration]);
-
-	useEffect(() => {
-		if (date && time) {
-			const currentTime = new Date();
-			const nextHour = addHours(currentTime, 1); // Minimalna godzina od teraz
-
-			const selectedDate = new Date(date);
-			const selectedTime = new Date(date);
-			const [hours, minutes] = time.split(":");
-			selectedTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
-
-			// Sprawdzenie, czy wybrano datę przyszłą (tylko kolejny dzień, a nie dalsze daty)
-			const isTomorrow =
-				selectedDate.toDateString() ===
-				addDays(currentTime, 1).toDateString();
-			if (isTomorrow) {
-				const minTimeForTomorrow = new Date(selectedDate);
-				minTimeForTomorrow.setHours(
-					nextHour.getHours(),
-					nextHour.getMinutes()
-				);
-
-				// Jeśli wybrany czas dla przyszłego dnia jest wcześniejszy niż minimalny
-				if (selectedTime < minTimeForTomorrow) {
-					setTime(format(minTimeForTomorrow, "HH:mm")); // Ustaw minimalną godzinę
-					setDate(minTimeForTomorrow); // Ustaw również datę na dzień następny
-				}
 			} else {
-				// Jeśli jest obecny dzień, ustal minimalną godzinę na 1 godzinę do przodu
-				const minTimeForToday = addHours(currentTime, 1);
-				if (selectedTime < minTimeForToday) {
-					setTime(format(minTimeForToday, "HH:mm")); // Ustaw minimalną godzinę
+				// Ensure end time is at least 2 hours after start time
+				const minEndDateTime = addHours(eventDateTime, 2);
+				if (
+					endDate < minEndDateTime ||
+					(endDate.toDateString() === eventDateTime.toDateString() &&
+						new Date(`${endDate.toDateString()} ${endTime}`) <
+							minEndDateTime)
+				) {
+					setEndDate(minEndDateTime);
+					setEndTime(format(minEndDateTime, "HH:mm"));
 				}
 			}
 		}
-	}, [date, time]);
+	}, [date, time, customDuration, endDate, endTime]);
+
+	const validateEndTime = (newEndTime) => {
+		if (date && time && customDuration) {
+			const eventDateTime = new Date(date);
+			const [startHours, startMinutes] = time.split(":");
+			eventDateTime.setHours(
+				parseInt(startHours, 10),
+				parseInt(startMinutes, 10)
+			);
+
+			const endDateTime = new Date(endDate);
+			const [endHours, endMinutes] = newEndTime.split(":");
+			endDateTime.setHours(
+				parseInt(endHours, 10),
+				parseInt(endMinutes, 10)
+			);
+
+			const minEndDateTime = addHours(eventDateTime, 2);
+
+			if (endDateTime < minEndDateTime) {
+				return format(minEndDateTime, "HH:mm");
+			}
+		}
+		return newEndTime;
+	};
 
 	const handleCustomDurationChange = (checked) => {
 		setCustomDuration(checked);
-		if (!checked && date && time) {
+		if (date && time) {
 			const eventDateTime = new Date(date);
 			const [hours, minutes] = time.split(":");
 			eventDateTime.setHours(parseInt(hours, 10), parseInt(minutes, 10));
-			const endDateTime = new Date(eventDateTime);
-			endDateTime.setHours(endDateTime.getHours() + 1);
+			const endDateTime = checked
+				? addHours(eventDateTime, 2)
+				: addHours(eventDateTime, 1);
 			setEndDate(endDateTime);
 			setEndTime(format(endDateTime, "HH:mm"));
 		}
@@ -857,8 +875,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								onChange={(e) => setTime(e.target.value)}
 								className="w-auto focus:ring-black focus:border-black"
 								min={
-									isToday(date) &&
-									(!initialDate || !isToday(initialDate))
+									isToday(date)
 										? format(
 												addHours(new Date(), 1),
 												"HH:mm"
@@ -894,13 +911,18 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 								startDate={new Date(date)}
 								onSelectDate={setEndDate}
 								selectedDate={endDate}
+								startTime={time}
 							/>
 							<div className="flex items-center justify-between">
 								<Label>Wybierz godzinę zakończenia</Label>
 								<Input
 									type="time"
 									value={endTime}
-									onChange={(e) => setEndTime(e.target.value)}
+									onChange={(e) => {
+										const validatedEndTime =
+											validateEndTime(e.target.value);
+										setEndTime(validatedEndTime);
+									}}
 									className="w-24 focus:ring-black focus:border-black"
 									min={
 										endDate.toDateString() ===
@@ -916,7 +938,7 @@ export default function CreateEvent({ eventToEdit, onEventCreated, onCancel }) {
 																	)[0]
 															}T${time}:00.000Z`
 														),
-														1
+														2
 													),
 													"HH:mm"
 											  )

@@ -41,7 +41,7 @@ exports.checkEndedEvents = functions.pubsub
 
 exports.sendNotification = functions.firestore
 	.document("events/{eventId}")
-	.onUpdate(async (change, context) => {
+	.onWrite(async (change, context) => {
 		const newValue = change.after.data();
 		const previousValue = change.before.data();
 
@@ -62,6 +62,16 @@ exports.sendNotification = functions.firestore
 			});
 			await batch.commit();
 		};
+
+		// Event deletion notification
+		if (!newValue && previousValue) {
+			const creatorName = await fetchCreatorName(previousValue.creator);
+			await sendNotificationToUsers(
+				previousValue.participants,
+				"Usunięto wydarzenie",
+				`Użytkownik ${creatorName} usunął wydarzenie, w którym brałeś/łaś udział.`
+			);
+		}
 
 		// Powiadomienie o rozpoczęciu wydarzenia za 2 godziny
 		const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000);
@@ -121,3 +131,12 @@ exports.sendNotification = functions.firestore
 			);
 		}
 	});
+
+async function fetchCreatorName(creatorId) {
+	const creatorDoc = await admin
+		.firestore()
+		.collection("users")
+		.doc(creatorId)
+		.get();
+	return creatorDoc.exists ? creatorDoc.data().name : "Nieznany użytkownik";
+}
